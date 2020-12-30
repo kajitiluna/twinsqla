@@ -19,12 +19,16 @@ class SqlStructure:
 
 class SqlBuilder:
 
-    def __init__(self, sql_file_root: Optional[Union[Path, str]] = None, cache_size: Optional[int] = None):
+    def __init__(self, sql_file_root: Optional[Union[Path, str]] = None,
+                 cache_size: Optional[int] = None):
+
         sql_root: Path = Path(os.getcwd()) if sql_file_root is None \
             else Path(sql_file_root)
 
         @lru_cache(maxsize=cache_size)
-        def _build(query: Optional[str] = None, *, sql_path: Optional[str] = None) -> SqlStructure:
+        def _build(query: Optional[str] = None, *,
+                   sql_path: Optional[str] = None) -> SqlStructure:
+
             if (query is None) and (sql_path is None):
                 raise exceptions.NoQueryArgumentException()
             if (query is not None) and (sql_path is not None):
@@ -84,7 +88,10 @@ class SqlBuilder:
 
         return SqlStructure("".join(prepared_query))
 
-    def _peer_whitespace(self, base_index: int, base_query: str, max_index: int) -> Tuple[str, int, str]:
+    def _peer_whitespace(
+        self, base_index: int, base_query: str, max_index: int
+    ) -> Tuple[str, int, str]:
+
         index = base_index
         seek_spaces: List[str] = []
         while index < max_index:
@@ -96,7 +103,10 @@ class SqlBuilder:
 
         return ("".join(seek_spaces), index, next_charactor)
 
-    def _peer_multiline_comment_end(self, base_index: int, base_query: str, max_index: int):
+    def _peer_multiline_comment_end(
+        self, base_index: int, base_query: str, max_index: int
+    ):
+
         index = base_index
         while index < max_index:
             next_charactors: str = base_query[index:(index + 2)]
@@ -109,7 +119,10 @@ class SqlBuilder:
     _PATTERN_PARAM_NAME: re.Pattern = re.compile(
         r"\A([a-zA-Z_][a-zA-Z0-9_]*) *\*/")
 
-    def _peer_prepared_param(self, base_index: int, base_query: str, max_index: int):
+    def _peer_prepared_param(
+        self, base_index: int, base_query: str, max_index: int
+    ):
+
         index: int = base_index
         matcher: Optional[re.Match] = self._PATTERN_PARAM_NAME.match(
             base_query[index:])
@@ -133,8 +146,11 @@ class SqlBuilder:
         while index < max_index:
             next_charactor: str = base_query[index]
             index += 1
-            if next_charactor in (" ", r"\t", r"\n", r"\r", "+", "-", "*", "/", "%"):
+            if next_charactor in (
+                " ", r"\t", r"\n", r"\r", "+", "-", "*", "/", "%"
+            ):
                 break
+
         return (parameter_name, index - 1)
 
     def _peer_text(self, base_index: int, base_query: str, max_index: int):
@@ -144,7 +160,9 @@ class SqlBuilder:
             next_charactor: str = base_query[index]
             seek_charactors.append(next_charactor)
             index += 1
-            if next_charactor == "'" and ((index == max_index) or (base_query[index] != "'")):
+            if next_charactor == "'" and (
+                (index == max_index) or (base_query[index] != "'")
+            ):
                 break
 
         return ("".join(seek_charactors), index)

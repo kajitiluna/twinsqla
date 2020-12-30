@@ -21,7 +21,8 @@ from .exceptions import NoSpecifiedInstanceException
 class TWinSQLA:
 
     def __init__(self, engine: sqlalchemy.engine.base.Engine, *,
-                 sql_file_root: Optional[Union[Path, str]] = None, cache_size: Optional[int] = 128):
+                 sql_file_root: Optional[Union[Path, str]] = None,
+                 cache_size: Optional[int] = 128):
 
         self._engine: Engine = engine
         self._sessionmaker: sessionmaker = sessionmaker(bind=engine)
@@ -65,17 +66,24 @@ class TWinSQLA:
             session.rollback()
             raise exc
 
-    def select(self, query: Optional[str] = None, *, sql_path: Optional[str] = None,
-               result_type: Type[Any] = OrderedDict, iteratable: bool = False):
+    def select(self, query: Optional[str] = None, *,
+               sql_path: Optional[str] = None,
+               result_type: Type[Any] = OrderedDict,
+               iteratable: bool = False):
         """
         Function decorator of query for sql selecting.
         Either argument 'query' or 'sql_path' must be specified.
 
         Args:
-            query (Optional[str], optional): sql query for selecting. Defaults to None.
-            sql_path (Optional[str], optional): file path with sql. Defaults to None.
-            result_type (Type[Any], optional): return type. Defaults to OrderedDict.
-            iteratable (bool, optional): When you want to iterating result, then True specified. Defaults to False.
+            query (Optional[str], optional):
+                sql query for selecting. Defaults to None.
+            sql_path (Optional[str], optional):
+                file path with sql. Defaults to None.
+            result_type (Type[Any], optional):
+                return type. Defaults to OrderedDict.
+            iteratable (bool, optional):
+                When you want to iterating result, then True specified.
+                Defaults to False.
 
         Returns:
             Callable: Function decorator
@@ -83,7 +91,10 @@ class TWinSQLA:
 
         return _do_select(query, sql_path, result_type, iteratable, sqla=self)
 
-    def _execute_query(self, query: sqlalchemy.sql.text, **key_values) -> ResultProxy:
+    def _execute_query(
+        self, query: sqlalchemy.sql.text, **key_values
+    ) -> ResultProxy:
+
         return self._locals.session.execute(query, key_values) \
             if getattr(self._locals, 'session', None) \
             else self._engine.execute(query, **key_values)
@@ -95,8 +106,10 @@ def select(query: Optional[str] = None, *, sql_path: Optional[str] = None,
     return _do_select(query, sql_path, result_type, iteratable)
 
 
-def _do_select(query: Optional[str], sql_path: Optional[str], result_type: Type[Any], iteratable: bool,
-               sqla: Optional[TWinSQLA] = None):
+def _do_select(
+    query: Optional[str], sql_path: Optional[str], result_type: Type[Any],
+    iteratable: bool, sqla: Optional[TWinSQLA] = None
+):
 
     target_query: Optional[str] = query
 
@@ -104,7 +117,10 @@ def _do_select(query: Optional[str], sql_path: Optional[str], result_type: Type[
         target_func: Callable = func
 
         @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Union[List[result_type], ResultIterator[result_type]]:
+        def wrapper(*args, **kwargs) -> Union[
+            List[result_type], ResultIterator[result_type]
+        ]:
+
             sqla_obj: TWinSQLA = sqla if sqla \
                 else _find_instance(target_func, *args, **kwargs)
 
@@ -154,7 +170,10 @@ def _find_instance(func: Callable, *args, **kwargs) -> TWinSQLA:
     raise NoSpecifiedInstanceException(func)
 
 
-def _find_instance_specified(target_obj: Any, param_name) -> Optional[TWinSQLA]:
+def _find_instance_specified(
+    target_obj: Any, param_name
+) -> Optional[TWinSQLA]:
+
     target = getattr(target_obj, param_name, None)
     return target if target and isinstance(target, TWinSQLA) else None
 
@@ -176,7 +195,9 @@ def _merge_arguments_to_dict(func: Callable, *args, **kwargs) -> dict:
     func_signature: signature = signature(func)
 
     positional_args_dict: dict = {
-        name: value for name, value in zip(func_signature.parameters.keys(), args) if name != "self"
+        name: value for name, value in zip(
+            func_signature.parameters.keys(), args
+        ) if name != "self"
     }
     key_values.update(positional_args_dict)
     return key_values
