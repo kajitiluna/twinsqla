@@ -1,0 +1,8 @@
+{
+    "python.formatting.autopep8Args": [
+        "--ignore=W503,W504,E402"
+    ],
+    "python.linting.flake8Args": [
+        "--ignore=W503,W504,E402"
+    ]
+}
