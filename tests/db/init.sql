@@ -1,7 +1,7 @@
 CREATE TABLE staff (
     account_id SERIAL PRIMARY KEY,
     username TEXT NOT NULL,
-    age INTEGER NOT NULL
+    age INTEGER
 );
 
 INSERT INTO staff(username, age) VALUES

@@ -51,13 +51,13 @@ def _find_instance_fullscan(obj_type: Type[Any], values) -> Optional[Any]:
     return None
 
 
-def _find_entity(func: Callable, except_obj: list, *args, **kwargs) -> Any:
+def _find_entity(func: Callable, except_list: list, *args, **kwargs) -> Any:
     if "entity" in kwargs:
         return kwargs["entity"]
 
     index_start: int = 1 if signature(func).parameters.get("self") else 0
     for target in args[index_start:]:
-        if target not in except_obj:
+        if target not in except_list:
             return target
 
     raise NoSpecifiedEntityException(func)

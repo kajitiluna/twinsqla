@@ -14,9 +14,9 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.session import Session
 from sqlalchemy.engine.result import ResultProxy, RowProxy
 
-from ._sqlbuilder import SqlBuilder, SqlStructure
-from ._support import _find_instance, _find_entity, _merge_arguments_to_dict
-from .exceptions import InvalidTableNameException, NotFoundTableNameException
+from ._sqlbuilder import SqlBuilder, SqlBinder
+from ._support import _find_instance
+from .exceptions import InvalidTableNameException
 
 
 class TWinSQLA:
@@ -72,84 +72,88 @@ class TWinSQLA:
                result_type: Type[Any] = OrderedDict,
                iteratable: bool = False):
         """
-        Function decorator of query for sql selecting.
-        Either argument 'query' or 'sql_path' must be specified.
+        Function decorator of select operation.
+        Only one argument 'query' or 'sql_path' must be specified.
+
+        In called decorated method, the processing implemented by the method
+        is not executed, but arguments of method are used for bind parameters.
+
+        For example:
+            - Implementation
+            @twinsqla_obj.select(
+                "SELECT * FROM staff WHERE staff_id >= /* :more_than_id */10",
+                result_type=Staff
+            )
+            def filter_staff(more_than_id: int) -> List[Staff]:
+                pass
+
+            - In executing
+            staff: List[Staff] = filter_staff(73)
+        staff object contains the result of
+         "SELECT * FROM staff WHERE staff_id >= 73"
 
         Args:
             query (Optional[str], optional):
-                sql query for selecting. Defaults to None.
+                select query (available TwoWay SQL). Defaults to None.
             sql_path (Optional[str], optional):
-                file path with sql. Defaults to None.
+                file path with sql (available TwoWay SQL). Defaults to None.
             result_type (Type[Any], optional):
                 return type. Defaults to OrderedDict.
             iteratable (bool, optional):
-                When you want to iterating result, then True specified.
+                When you want to fetching iterataly result,
+                then True specified and returned ResultIterator object.
                 Defaults to False.
 
         Returns:
-            Callable: Function decorator
+            Callable: Function decorator for select query
         """
 
         return _do_select(query, sql_path, result_type, iteratable, sqla=self)
 
-    def insert(self, *, table_name: Optional[str] = None,
+    def insert(self, query: Optional[str] = None, *,
+               sql_path: Optional[str] = None,
+               table_name: Optional[str] = None,
                result_type: Type[Any] = None,
                iteratable: bool = False):
+        """
+        Function decorator of insert operation.
+        In constructing insert query by yourself, you need to specify either
+        one of the arguments 'query' or 'sql_path'.
 
-        return _do_insert(table_name, result_type, iteratable, sqla=self)
+        In neither 'query' nor 'sql_path' are specified, this decorator creates
+        insert query with arguments of decorated method.
+        In this case, you need to specify inserted table name by decorator
+        argument 'table_name' or decorating '@twinsqla.Table' to entity class.
 
-    def _execute_query(
-        self, query: sqlalchemy.sql.text, **key_values
-    ) -> ResultProxy:
+        Args:
+            query (Optional[str], optional):
+                insert query (available TwoWay SQL). Defaults to None.
+            sql_path (Optional[str], optional):
+                file path with sql (available TwoWay SQL). Defaults to None.
+            table_name (Optional[str], optional):
+                table name for inserting. Defaults to None.
+            result_type (Type[Any], optional):
+                When constructing "INSERT RETURN" query, it is useful to
+                specify return type. Defaults to None.
+            iteratable (bool, optional):
+                In almost cases, this argument need not to specified.
+                The only useful case is in using "INSERT RETURN" query.
+                Defaults to False.
 
-        return self._locals.session.execute(query, key_values) \
+        Returns:
+            Callable: Function decorator for insert query
+        """
+
+        return _do_insert(query, sql_path, table_name, result_type, iteratable,
+                          sqla=self)
+
+    def _execute_query(self, sql_binder: SqlBinder) -> ResultProxy:
+        query: sqlalchemy.sql.text = sql_binder.prepared_query()
+        bind_params: dict = sql_binder.bind_params()
+
+        return self._locals.session.execute(query, bind_params) \
             if getattr(self._locals, 'session', None) \
-            else self._engine.execute(query, **key_values)
-
-
-def select(query: Optional[str] = None, *, sql_path: Optional[str] = None,
-           result_type: Type[Any] = OrderedDict, iteratable: bool = False):
-
-    return _do_select(query, sql_path, result_type, iteratable)
-
-
-def _do_select(
-    query: Optional[str], sql_path: Optional[str], result_type: Type[Any],
-    iteratable: bool, sqla: Optional[TWinSQLA] = None
-):
-
-    target_query: Optional[str] = query
-
-    def _select(func: Callable):
-        target_func: Callable = func
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Union[
-            List[result_type], ResultIterator[result_type], None
-        ]:
-
-            sqla_obj: TWinSQLA = sqla if sqla \
-                else _find_twinsqla(target_func, *args, **kwargs)
-
-            sql_structure: SqlStructure = sqla_obj._sql_builder.build(
-                query=target_query, sql_path=sql_path)
-            key_values: dict = _merge_arguments_to_dict(
-                target_func, *args, **kwargs)
-
-            query: sqlalchemy.sql.text = sql_structure.prepared_query()
-            results: ResultProxy = sqla_obj._execute_query(query, **key_values)
-
-            if result_type is None:
-                return None
-
-            if iteratable is True:
-                return ResultIterator[result_type](results)
-
-            return [result_type(**OrderedDict(result)) for result in results]
-
-        return wrapper
-
-    return _select
+            else self._engine.execute(query, **bind_params)
 
 
 _PATTERN_TABLE_NAME = re.compile(r"\A[a-zA-Z_][a-zA-Z0-9_]*\Z")
@@ -167,14 +171,120 @@ def Table(name: str):
     return _table
 
 
-def insert(*, table_name: Optional[str] = None, result_type: Type[Any] = None,
+def select(query: Optional[str] = None, *, sql_path: Optional[str] = None,
+           result_type: Type[Any] = OrderedDict, iteratable: bool = False):
+    """
+    Function decorator of select operation.
+    Only one argument 'query' or 'sql_path' must be specified.
+
+    In called decorated method, the processing implemented by the method
+    is not executed, but arguments of method are used for bind parameters.
+
+    For example:
+        - Implementation
+        @twinsqla.select(
+            "SELECT * FROM staff WHERE staff_id >= /* :more_than_id */10",
+            result_type=Staff
+        )
+        def filter_staff(self, more_than_id: int) -> List[Staff]:
+            pass
+
+        - In executing
+        staff: List[Staff] = filter_staff(73)
+    staff object contains the result of
+        "SELECT * FROM staff WHERE staff_id >= 73"
+
+    Args:
+        query (Optional[str], optional):
+            select query (available TwoWay SQL). Defaults to None.
+        sql_path (Optional[str], optional):
+            file path with sql (available TwoWay SQL). Defaults to None.
+        result_type (Type[Any], optional):
+            return type. Defaults to OrderedDict.
+        iteratable (bool, optional):
+            When you want to fetching iterataly result, then True specified
+            and returned ResultIterator object. Defaults to False.
+
+    Returns:
+        Callable: Function decorator
+    """
+
+    return _do_select(query, sql_path, result_type, iteratable)
+
+
+def _do_select(
+    query: Optional[str], sql_path: Optional[str], result_type: Type[Any],
+    iteratable: bool, sqla: Optional[TWinSQLA] = None
+):
+
+    target_query: Optional[str] = query
+
+    def _select(func: Callable):
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> Union[
+            List[result_type], ResultIterator[result_type], None
+        ]:
+
+            sqla_obj: TWinSQLA = sqla if sqla \
+                else _find_twinsqla(func, *args, **kwargs)
+            sql_binder: SqlBinder = sqla_obj._sql_builder.prepare_for_select(
+                target_query, sql_path, func, *args, **kwargs
+            )
+
+            results: ResultProxy = sqla_obj._execute_query(sql_binder)
+
+            if result_type is None:
+                return None
+            if iteratable is True:
+                return ResultIterator[result_type](results)
+            return [result_type(**OrderedDict(result)) for result in results]
+
+        return wrapper
+
+    return _select
+
+
+def insert(query: Optional[str] = None, *, sql_path: Optional[str] = None,
+           table_name: Optional[str] = None, result_type: Type[Any] = None,
            iteratable: bool = False):
+    """
+    Function decorator of insert operation.
+    In constructing insert query by yourself, you need to specify either
+    one of the arguments 'query' or 'sql_path'.
 
-    return _do_insert(table_name, result_type, iteratable)
+    In neither 'query' nor 'sql_path' are specified, this decorator creates
+    insert query with arguments of decorated method.
+    In this case, you need to specify inserted table name by decorator
+    argument 'table_name' or decorating '@twinsqla.Table' to entity class.
+
+    Args:
+        query (Optional[str], optional):
+            insert query (available TwoWay SQL). Defaults to None.
+        sql_path (Optional[str], optional):
+            file path with sql (available TwoWay SQL). Defaults to None.
+        table_name (Optional[str], optional):
+            table name for inserting. Defaults to None.
+        result_type (Type[Any], optional):
+            When constructing "INSERT RETURN" query, it is useful to
+            specify return type. Defaults to None.
+        iteratable (bool, optional):
+            In almost cases, this argument need not to specified.
+            The only useful case is in using "INSERT RETURN" query.
+            Defaults to False.
+
+    Returns:
+        Callable: Function decorator for insert query
+    """
+
+    return _do_insert(query, sql_path, table_name, result_type, iteratable)
 
 
-def _do_insert(table_name: Optional[str], result_type: Type[Any],
+def _do_insert(query: Optional[str], sql_path: Optional[str],
+               table_name: Optional[str], result_type: Type[Any],
                iteratable: bool, sqla: Optional[TWinSQLA] = None):
+
+    target_query: Optional[str] = query
 
     def _insert(func: Callable):
         target_func: Callable = func
@@ -186,34 +296,17 @@ def _do_insert(table_name: Optional[str], result_type: Type[Any],
 
             sqla_obj: TWinSQLA = sqla if sqla \
                 else _find_twinsqla(target_func, *args, **kwargs)
-
-            entity: Optional[Any] = _find_entity(
-                target_func, [sqla_obj], *args, **kwargs)
-            target_table_name: Optional[str] = table_name if table_name \
-                else getattr(entity, "_table_name", None)
-            if target_table_name is None:
-                raise NotFoundTableNameException(
-                    entity, "insert", "_table_name")
-
-            bind_params: dict = {
-                key: value for key, value in vars(entity).items()
-                if (value is not None) and (key != "_table_name")
-            }
-            query: sqlalchemy.sql.text = sqlalchemy.sql.text(
-                f"INSERT INTO {target_table_name}"
-                f"({', '.join([f'{param}' for param in bind_params.keys()])})"
-                f" VALUES "
-                f"({', '.join([f':{param}' for param in bind_params.keys()])})"
+            sql_binder: SqlBinder = sqla_obj._sql_builder.prepare_for_insert(
+                target_query, sql_path, table_name, [sqla_obj],
+                func, *args, **kwargs
             )
-            results: ResultProxy = sqla_obj._execute_query(
-                query, **bind_params)
+
+            results: ResultProxy = sqla_obj._execute_query(sql_binder)
 
             if result_type is None:
                 return None
-
             if iteratable is True:
                 return ResultIterator[result_type](results)
-
             return [result_type(**OrderedDict(result)) for result in results]
 
         return wrapper
@@ -241,3 +334,6 @@ class ResultIterator(Generic[RESULT_TYPE]):
     def __next__(self) -> RESULT_TYPE:
         next_value: RowProxy = self.result_proxy.next()
         return RESULT_TYPE(**dict(next_value))
+
+
+TWinSQLA.select.__doc__ = _do_select.__doc__
