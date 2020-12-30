@@ -3,9 +3,9 @@ from typing import Type, TypeVar, Generic
 from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass
-from inspect import signature
 from pathlib import Path
 import functools
+import re
 import threading
 
 import sqlalchemy
@@ -15,7 +15,8 @@ from sqlalchemy.orm.session import Session
 from sqlalchemy.engine.result import ResultProxy, RowProxy
 
 from ._sqlbuilder import SqlBuilder, SqlStructure
-from .exceptions import NoSpecifiedInstanceException
+from ._support import _find_instance, _find_entity, _merge_arguments_to_dict
+from .exceptions import InvalidTableNameException, NotFoundTableNameException
 
 
 class TWinSQLA:
@@ -91,6 +92,12 @@ class TWinSQLA:
 
         return _do_select(query, sql_path, result_type, iteratable, sqla=self)
 
+    def insert(self, *, table_name: Optional[str] = None,
+               result_type: Type[Any] = None,
+               iteratable: bool = False):
+
+        return _do_insert(table_name, result_type, iteratable, sqla=self)
+
     def _execute_query(
         self, query: sqlalchemy.sql.text, **key_values
     ) -> ResultProxy:
@@ -118,11 +125,11 @@ def _do_select(
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> Union[
-            List[result_type], ResultIterator[result_type]
+            List[result_type], ResultIterator[result_type], None
         ]:
 
             sqla_obj: TWinSQLA = sqla if sqla \
-                else _find_instance(target_func, *args, **kwargs)
+                else _find_twinsqla(target_func, *args, **kwargs)
 
             sql_structure: SqlStructure = sqla_obj._sql_builder.build(
                 query=target_query, sql_path=sql_path)
@@ -132,75 +139,92 @@ def _do_select(
             query: sqlalchemy.sql.text = sql_structure.prepared_query()
             results: ResultProxy = sqla_obj._execute_query(query, **key_values)
 
+            if result_type is None:
+                return None
+
             if iteratable is True:
                 return ResultIterator[result_type](results)
 
-            return [result_type(**dict(result)) for result in results]
+            return [result_type(**OrderedDict(result)) for result in results]
 
         return wrapper
 
     return _select
 
 
-def _find_instance(func: Callable, *args, **kwargs) -> TWinSQLA:
-    own_obj = getattr(func, "__self__", None) or (
-        args[0] if signature(func).parameters.get("self") and len(args) > 0
-        else None
+_PATTERN_TABLE_NAME = re.compile(r"\A[a-zA-Z_][a-zA-Z0-9_]*\Z")
+
+
+def Table(name: str):
+    matcher: Optional[re.Match] = _PATTERN_TABLE_NAME.fullmatch(name)
+    if matcher is None:
+        raise InvalidTableNameException(name, _PATTERN_TABLE_NAME)
+
+    def _table(cls):
+        cls._table_name = name
+        return cls
+
+    return _table
+
+
+def insert(*, table_name: Optional[str] = None, result_type: Type[Any] = None,
+           iteratable: bool = False):
+
+    return _do_insert(table_name, result_type, iteratable)
+
+
+def _do_insert(table_name: Optional[str], result_type: Type[Any],
+               iteratable: bool, sqla: Optional[TWinSQLA] = None):
+
+    def _insert(func: Callable):
+        target_func: Callable = func
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> Union[
+            List[result_type], ResultIterator[result_type], None
+        ]:
+
+            sqla_obj: TWinSQLA = sqla if sqla \
+                else _find_twinsqla(target_func, *args, **kwargs)
+
+            entity: Optional[Any] = _find_entity(
+                target_func, [sqla_obj], *args, **kwargs)
+            target_table_name: Optional[str] = table_name if table_name \
+                else getattr(entity, "_table_name", None)
+            if target_table_name is None:
+                raise NotFoundTableNameException(
+                    entity, "insert", "_table_name")
+
+            bind_params: dict = {
+                key: value for key, value in vars(entity).items()
+                if (value is not None) and (key != "_table_name")
+            }
+            query: sqlalchemy.sql.text = sqlalchemy.sql.text(
+                f"INSERT INTO {target_table_name}"
+                f"({', '.join([f'{param}' for param in bind_params.keys()])})"
+                f" VALUES "
+                f"({', '.join([f':{param}' for param in bind_params.keys()])})"
+            )
+            results: ResultProxy = sqla_obj._execute_query(
+                query, **bind_params)
+
+            if result_type is None:
+                return None
+
+            if iteratable is True:
+                return ResultIterator[result_type](results)
+
+            return [result_type(**OrderedDict(result)) for result in results]
+
+        return wrapper
+
+    return _insert
+
+
+def _find_twinsqla(func: Callable, *args, **kwargs) -> TWinSQLA:
+    return _find_instance(
+        TWinSQLA, ["sqla", "twinsqla"], func, *args, **kwargs
     )
-
-    if own_obj:
-        twinsqla_obj: Optional[TWinSQLA] = (
-            _find_instance_specified(own_obj, "sqla")
-            or _find_instance_specified(own_obj, "twinsqla")
-        )
-        if twinsqla_obj:
-            return twinsqla_obj
-
-        for param in vars(own_obj).values():
-            if isinstance(param, TWinSQLA):
-                return param
-
-    result: Optional[TWinSQLA] = (
-        _find_instance_fullscan(args)
-        or _find_instance_fullscan(kwargs.values())
-    )
-    if result:
-        return result
-
-    raise NoSpecifiedInstanceException(func)
-
-
-def _find_instance_specified(
-    target_obj: Any, param_name
-) -> Optional[TWinSQLA]:
-
-    target = getattr(target_obj, param_name, None)
-    return target if target and isinstance(target, TWinSQLA) else None
-
-
-def _find_instance_fullscan(values) -> Optional[TWinSQLA]:
-    if not values:
-        return None
-    for value in values:
-        if isinstance(value, TWinSQLA):
-            return value
-    return None
-
-
-def _merge_arguments_to_dict(func: Callable, *args, **kwargs) -> dict:
-    if not args:
-        return kwargs
-
-    key_values: dict = kwargs
-    func_signature: signature = signature(func)
-
-    positional_args_dict: dict = {
-        name: value for name, value in zip(
-            func_signature.parameters.keys(), args
-        ) if name != "self"
-    }
-    key_values.update(positional_args_dict)
-    return key_values
 
 
 RESULT_TYPE = TypeVar("RESULT_TYPE")

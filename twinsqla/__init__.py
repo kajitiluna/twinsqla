@@ -1,4 +1,4 @@
-from .twinsqla import TWinSQLA, ResultIterator
-from .twinsqla import select
+from .twinsqla import TWinSQLA, ResultIterator, Table
+from .twinsqla import select, insert
 
-__all__ = ["TWinSQLA", "ResultIterator", "select"]
+__all__ = ["TWinSQLA", "ResultIterator", "Table", "select", "insert"]

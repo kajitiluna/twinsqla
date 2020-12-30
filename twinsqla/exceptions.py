@@ -1,5 +1,6 @@
 from typing import List
 from inspect import signature
+import re
 
 
 class NoQueryArgumentException(Exception):
@@ -22,6 +23,27 @@ class InvalidStructureException(Exception):
     pass
 
 
+class InvalidTableNameException(Exception):
+    def __init__(self, table_name: str, pattern: re.Pattern):
+        super().__init__(
+            f"The specified table name '{table_name}' is"
+            " contained invalid charactors."
+            f" Table name must be matched pattern '{pattern.name}'"
+        )
+        self.table_name: str = table_name
+
+
+class NotFoundTableNameException(Exception):
+    def __init__(self, entity: any, operation: str, param_name: str):
+        super().__init__(
+            f"The table name is not found in the object '{entity}'."
+            " You need to choice one of implementation : "
+            " to decorate '@TWinSQLA.Table' to an object's class,"
+            f" to decorate '@twinsqla.{operation}(table_name)' to a method,"
+            f" or to set attribute '{param_name}' to an object."
+        )
+
+
 class NoSpecifiedInstanceException(Exception):
     def __init__(self, func: callable):
         arguments: List[str] = [
@@ -33,3 +55,14 @@ class NoSpecifiedInstanceException(Exception):
             f" nor arguments {', '.join(arguments)}."
         )
         super().__init__(message)
+
+
+class NoSpecifiedEntityException(Exception):
+    def __init__(self, func: callable):
+        arguments: List[str] = [
+            f"'{param}'" for param in signature(func).parameters.keys()
+        ]
+        super().__init__(
+            "Not found entity to operating in function"
+            f" '{func.__name__}({', '.join(arguments)})'"
+        )
