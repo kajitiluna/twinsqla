@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union, List
+from typing import Any, Optional, Union, List, Tuple
 from dataclasses import dataclass
 from abc import ABCMeta, abstractmethod
 
@@ -26,10 +26,23 @@ class QueryContext():
     sql_path: Optional[str]
     table_name: Optional[str]
     bind_params: dict
+    condition_columns: Tuple[str, ...]
 
     triggered_function: callable
     function_args: tuple
     function_kwargs: dict
+
+    def init_structure(self, operation: str) -> Tuple[str, List[dict]]:
+        entities: List[Any] = self.find_entities()
+        table_name: str = self.find_table_name(entities[0], operation)
+        bind_parameters: List[dict] = [
+            {
+                key: value for key, value in vars(entity).items()
+                if (value is not None) and (key != "_table_name")
+            } for entity in entities
+        ]
+
+        return (table_name, bind_parameters)
 
     def find_entities(self) -> List[Any]:
         target: Optional[Any] = (
@@ -39,12 +52,24 @@ class QueryContext():
         ) if self.bind_params else None
 
         if target is None:
-            return []
+            raise exceptions.NoSpecifiedEntityException(
+                self.triggered_function)
 
         if isinstance(target, (dict, tuple)):
             return target
 
         return [target]
+
+    def find_table_name(self, entity: Any, operation: str) -> str:
+        target_table_name: Optional[str] = self.table_name \
+            if self.table_name \
+            else getattr(entity, "_table_name", None)
+
+        if target_table_name is None:
+            raise exceptions.NotFoundTableNameException(
+                entity, operation, "_table_name")
+
+        return target_table_name
 
 
 class QueryBindBuilder(metaclass=ABCMeta):
@@ -75,30 +100,44 @@ class InsertBindBuilder(QueryBindBuilder):
         if prepared_sql is not None:
             return PreparedQuery(prepared_sql, context.bind_params)
 
-        entities: List[Any] = context.find_entities()
-        if len(entities) == 0:
-            raise exceptions.NoSpecifiedEntityException(
-                context.triggered_function)
-
-        target_table_name: Optional[str] = context.table_name \
-            if context.table_name \
-            else getattr(entities[0], "_table_name", None)
-        if target_table_name is None:
-            raise exceptions.NotFoundTableNameException(
-                entities[0], "insert", "_table_name")
-
-        bind_parameters: List[dict] = [
-            {
-                key: value for key, value in vars(entity).items()
-                if (value is not None) and (key != "_table_name")
-            } for entity in entities
-        ]
+        structure: Tuple[str, List[dict]] = context.init_structure("insert")
+        table_name: str = structure[0]
+        bind_parameters: List[dict] = structure[1]
 
         prepared_sql: str = (
-            f"INSERT INTO {target_table_name}"
+            f"INSERT INTO {table_name}"
             f"({', '.join([f'{key}' for key in bind_parameters[0].keys()])})"
             f" VALUES "
             f"({', '.join([f':{key}' for key in bind_parameters[0].keys()])})"
         )
+
+        return PreparedQuery(prepared_sql, bind_parameters)
+
+
+class UpdateBindBuilder(QueryBindBuilder):
+    def bind(self, builder: SqlBuilder, context: QueryContext
+             ) -> PreparedQuery:
+
+        prepared_sql: Optional[str] = builder.build(
+            query=context.query, sql_path=context.sql_path)
+        if prepared_sql is not None:
+            return PreparedQuery(prepared_sql, context.bind_params)
+
+        structure: Tuple[str, List[dict]] = context.init_structure("update")
+        table_name: str = structure[0]
+        bind_parameters: List[dict] = structure[1]
+
+        updating_columns: List[str] = [
+            f'{key} = :{key}' for key in bind_parameters[0].keys()
+            if key not in context.condition_columns
+        ]
+        filter_conditions: List[str] = [
+            f"{column} = :{column}" for column in context.condition_columns
+        ]
+        prepared_sql: str = \
+            f"UPDATE {table_name} SET {', '.join(updating_columns)}" + (
+                f" WHERE {' AND '.join(filter_conditions)}"
+                if filter_conditions else ""
+            )
 
         return PreparedQuery(prepared_sql, bind_parameters)

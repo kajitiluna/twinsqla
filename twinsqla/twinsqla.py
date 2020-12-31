@@ -1,4 +1,4 @@
-from typing import Callable, Any, List, Optional, Union
+from typing import Callable, Any, List, Tuple, Optional, Union
 from typing import Type, TypeVar, Generic
 from collections import OrderedDict
 from contextlib import contextmanager
@@ -17,7 +17,7 @@ from sqlalchemy.engine.result import ResultProxy, RowProxy
 
 from ._sqlbuilder import SqlBuilder
 from ._querybindbuilder import (
-    QueryBindBuilder, SelectBindBuilder, InsertBindBuilder,
+    QueryBindBuilder, SelectBindBuilder, InsertBindBuilder, UpdateBindBuilder,
     QueryContext, PreparedQuery
 )
 from ._support import _find_instance, _merge_arguments_to_dict
@@ -138,11 +138,11 @@ class TWinSQLA:
             table_name (Optional[str], optional):
                 table name for inserting. Defaults to None.
             result_type (Type[Any], optional):
-                When constructing "INSERT RETURN" query, it is useful to
+                When constructing "INSERT RETURNING" query, it is useful to
                 specify return type. Defaults to None.
             iteratable (bool, optional):
                 In almost cases, this argument need not to specified.
-                The only useful case is in using "INSERT RETURN" query.
+                The only useful case is in using "INSERT RETURNING" query.
                 Defaults to False.
 
         Returns:
@@ -151,6 +151,50 @@ class TWinSQLA:
 
         return _do_insert(query, sql_path, table_name, result_type, iteratable,
                           sqla=self)
+
+    def update(self, query: Optional[str] = None, *,
+               sql_path: Optional[str] = None,
+               table_name: Optional[str] = None,
+               condition_columns: Union[str, Tuple[str, ...]] = (),
+               result_type: Type[Any] = None, iteratable: bool = False):
+        """
+        Function decorator of update operation.
+        In constructing update query by yourself, you need to specify either
+        one of the arguments 'query' or 'sql_path'.
+
+        In neither 'query' nor 'sql_path' are specified, this decorator creates
+        update query with arguments of decorated method.
+        In this case, you need follows.
+            1. To specify updated table name by decorator argument 'table_name'
+                or by decorating '@twinsqla.Table' to entity class.
+            2. To specifry the column names for using WHERE conditions
+                by decorator argument 'condition_columns'
+
+        Args:
+            query (Optional[str], optional):
+                update query (available TwoWay SQL). Defaults to None.
+            sql_path (Optional[str], optional):
+                file path with sql (available TwoWay SQL). Defaults to None.
+            table_name (Optional[str], optional):
+                table name for updating. Defaults to None.
+            condition_columns (Union[str, Tuple[str, ...]], optional):
+                column names in WHERE condition. In almost cases, you are
+                recommended to specify primary key names of the table.
+                Defaults to ().
+            result_type (Type[Any], optional):
+                When constructing "UPDATE RETURNING" query, it is useful to
+                specify return type. Defaults to None.
+            iteratable (bool, optional):
+                In almost cases, this argument need not to specified.
+                The only useful case is in using "UPDATE RETURNING" query.
+                Defaults to False.
+
+        Returns:
+            Callable: Function decorator for update query
+        """
+
+        return _do_update(query, sql_path, table_name, condition_columns,
+                          result_type, iteratable, sqla=self)
 
     def _execute_query(self, prepared: PreparedQuery) -> ResultProxy:
         query: sqlalchemy.sql.text = prepared.statement()
@@ -222,10 +266,8 @@ def _do_select(query: Optional[str], sql_path: Optional[str],
                sqla: Optional[TWinSQLA] = None):
 
     return QueryType.SELECT.query_decorator(
-        sqla=sqla,
-        query=query, sql_path=sql_path,
-        result_type=result_type,
-        iteratable=iteratable
+        sqla=sqla, query=query, sql_path=sql_path,
+        result_type=result_type, iteratable=iteratable
     )
 
 
@@ -250,11 +292,11 @@ def insert(query: Optional[str] = None, *, sql_path: Optional[str] = None,
         table_name (Optional[str], optional):
             table name for inserting. Defaults to None.
         result_type (Type[Any], optional):
-            When constructing "INSERT RETURN" query, it is useful to
+            When constructing "INSERT RETURNING" query, it is useful to
             specify return type. Defaults to None.
         iteratable (bool, optional):
             In almost cases, this argument need not to specified.
-            The only useful case is in using "INSERT RETURN" query.
+            The only useful case is in using "INSERT RETURNING" query.
             Defaults to False.
 
     Returns:
@@ -269,8 +311,67 @@ def _do_insert(query: Optional[str], sql_path: Optional[str],
                iteratable: bool, sqla: Optional[TWinSQLA] = None):
 
     return QueryType.INSERT.query_decorator(
-        sqla=sqla,
-        query=query, sql_path=sql_path, table_name=table_name,
+        sqla=sqla, query=query, sql_path=sql_path, table_name=table_name,
+        result_type=result_type, iteratable=iteratable
+    )
+
+
+def update(query: Optional[str] = None, *, sql_path: Optional[str] = None,
+           table_name: Optional[str] = None,
+           condition_columns: Union[str, Tuple[str, ...]] = (),
+           result_type: Type[Any] = None, iteratable: bool = False):
+    """
+    Function decorator of update operation.
+    In constructing update query by yourself, you need to specify either
+    one of the arguments 'query' or 'sql_path'.
+
+    In neither 'query' nor 'sql_path' are specified, this decorator creates
+    update query with arguments of decorated method.
+    In this case, you need follows.
+        1. To specify updated table name by decorator argument 'table_name'
+            or by decorating '@twinsqla.Table' to entity class.
+        2. To specifry the column names for using WHERE conditions
+            by decorator argument 'condition_columns'
+
+    Args:
+        query (Optional[str], optional):
+            update query (available TwoWay SQL). Defaults to None.
+        sql_path (Optional[str], optional):
+            file path with sql (available TwoWay SQL). Defaults to None.
+        table_name (Optional[str], optional):
+            table name for updating. Defaults to None.
+        condition_columns (Union[str, Tuple[str, ...]], optional):
+            column names in WHERE condition. In almost cases, you are
+            recommended to specify primary key names of the table.
+            Defaults to ().
+        result_type (Type[Any], optional):
+            When constructing "UPDATE RETURNING" query, it is useful to
+            specify return type. Defaults to None.
+        iteratable (bool, optional):
+            In almost cases, this argument need not to specified.
+            The only useful case is in using "UPDATE RETURNING" query.
+            Defaults to False.
+
+    Returns:
+        Callable: Function decorator for update query
+    """
+
+    return _do_update(query, sql_path, table_name, condition_columns,
+                      result_type, iteratable)
+
+
+def _do_update(query: Optional[str], sql_path: Optional[str],
+               table_name: Optional[str],
+               condition_columns: Union[str, Tuple[str, ...]],
+               result_type: Type[Any], iteratable: bool,
+               sqla: Optional[TWinSQLA] = None):
+
+    target_condition_columns: Tuple[str, ...] = condition_columns \
+        if isinstance(condition_columns, tuple) else (condition_columns, )
+
+    return QueryType.UPDATE.query_decorator(
+        sqla=sqla, query=query, sql_path=sql_path,
+        table_name=table_name, condition_columns=target_condition_columns,
         result_type=result_type, iteratable=iteratable
     )
 
@@ -283,6 +384,7 @@ class QueryExecutor():
                         query: Optional[str] = None,
                         sql_path: Optional[str] = None,
                         table_name: Optional[str] = None,
+                        condition_columns: Tuple[str, ...] = (),
                         result_type: Type[Any] = None,
                         iteratable: bool = False):
 
@@ -297,8 +399,10 @@ class QueryExecutor():
                     else _find_twinsqla(func, args, kwargs)
                 bind_params: dict = _merge_arguments_to_dict(
                     func, args, kwargs, [sqla_obj])
+
                 context: QueryContext = QueryContext(
                     query=query, sql_path=sql_path, table_name=table_name,
+                    condition_columns=condition_columns,
                     bind_params=bind_params, triggered_function=func,
                     function_args=args, function_kwargs=kwargs
                 )
@@ -335,6 +439,7 @@ def _find_twinsqla(func: Callable, args: tuple, kwargs: dict) -> TWinSQLA:
 class QueryType(Enum):
     SELECT = QueryExecutor(SelectBindBuilder())
     INSERT = QueryExecutor(InsertBindBuilder())
+    UPDATE = QueryExecutor(UpdateBindBuilder())
 
     def query_decorator(self, *args, **kwargs):
         return self.value.query_decorator(*args, **kwargs)
