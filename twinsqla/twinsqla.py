@@ -17,7 +17,8 @@ from sqlalchemy.engine.result import ResultProxy, RowProxy
 
 from ._sqlbuilder import SqlBuilder
 from ._querybindbuilder import (
-    QueryBindBuilder, SelectBindBuilder, InsertBindBuilder, SqlBinder
+    QueryBindBuilder, SelectBindBuilder, InsertBindBuilder,
+    QueryContext, PreparedQuery
 )
 from ._support import _find_instance, _merge_arguments_to_dict
 from . import exceptions
@@ -151,13 +152,13 @@ class TWinSQLA:
         return _do_insert(query, sql_path, table_name, result_type, iteratable,
                           sqla=self)
 
-    def _execute_query(self, sql_binder: SqlBinder) -> ResultProxy:
-        query: sqlalchemy.sql.text = sql_binder.prepared_query()
-        bind_params: dict = sql_binder.bind_params()
+    def _execute_query(self, prepared: PreparedQuery) -> ResultProxy:
+        query: sqlalchemy.sql.text = prepared.statement()
+        bind_params: Union[dict, List[dict]] = prepared.bind_params()
 
         return self._locals.session.execute(query, bind_params) \
             if getattr(self._locals, 'session', None) \
-            else self._engine.execute(query, **bind_params)
+            else self._engine.execute(query, bind_params)
 
 
 _PATTERN_TABLE_NAME = re.compile(r"\A[a-zA-Z_][a-zA-Z0-9_]*\Z")
@@ -276,7 +277,7 @@ def _do_insert(query: Optional[str], sql_path: Optional[str],
 
 class QueryExecutor():
     def __init__(self, binder: QueryBindBuilder):
-        self.bind_builder = binder
+        self.bind_builder: QueryBindBuilder = binder
 
     def query_decorator(self, sqla: Optional[TWinSQLA] = None,
                         query: Optional[str] = None,
@@ -296,12 +297,16 @@ class QueryExecutor():
                     else _find_twinsqla(func, args, kwargs)
                 bind_params: dict = _merge_arguments_to_dict(
                     func, args, kwargs, [sqla_obj])
-                sql_binder: SqlBinder = self.bind_builder.bind(
-                    sqla_obj._sql_builder, query, sql_path, table_name,
-                    bind_params
+                context: QueryContext = QueryContext(
+                    query=query, sql_path=sql_path, table_name=table_name,
+                    bind_params=bind_params, triggered_function=func,
+                    function_args=args, function_kwargs=kwargs
+                )
+                prepared: PreparedQuery = self.bind_builder.bind(
+                    builder=sqla_obj._sql_builder, context=context
                 )
 
-                results: ResultProxy = sqla_obj._execute_query(sql_binder)
+                results: ResultProxy = sqla_obj._execute_query(prepared)
 
                 if result_type is None:
                     return None
@@ -313,6 +318,12 @@ class QueryExecutor():
             return wrapper
 
         return _execute
+
+    def __repr__(self):
+        return (
+            f"<{self.__module__}.{type(self).__name__}:"
+            f" bind_builder:{self.bind_builder}>"
+        )
 
 
 def _find_twinsqla(func: Callable, args: tuple, kwargs: dict) -> TWinSQLA:
