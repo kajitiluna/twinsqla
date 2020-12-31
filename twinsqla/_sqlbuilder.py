@@ -1,25 +1,10 @@
-from typing import Callable, Any, List, Optional, Union, Tuple
+from typing import Callable, List, Optional, Union, Tuple
 import os
 from pathlib import Path
 from functools import lru_cache
 import re
 
-import sqlalchemy
-
 from . import exceptions
-from ._support import _merge_arguments_to_dict, _find_entity
-
-
-class SqlBinder:
-    def __init__(self, prepared_sql: str, parameters: dict):
-        self.prepared_sql: str = prepared_sql
-        self.parameters: dict = parameters
-
-    def prepared_query(self) -> sqlalchemy.sql.text:
-        return sqlalchemy.sql.text(self.prepared_sql)
-
-    def bind_params(self) -> dict:
-        return self.parameters.copy()
 
 
 class SqlBuilder:
@@ -31,16 +16,10 @@ class SqlBuilder:
             else Path(sql_file_root)
 
         @lru_cache(maxsize=cache_size)
-        def _build(*, query: Optional[str],
-                   sql_path: Optional[str]) -> Optional[str]:
-
-            if (query is not None) and (sql_path is not None):
-                raise exceptions.DuplicatedQueryArgumentException()
-            if (query is None) and (sql_path is None):
-                return None
+        def load_query(query: Optional[str],
+                       sql_path: Optional[str]) -> Optional[str]:
 
             import textwrap
-
             base_query: str = textwrap.dedent(query) if query is not None \
                 else _read_file(sql_path, sql_root)
 
@@ -51,54 +30,18 @@ class SqlBuilder:
             with open(file_path, 'r') as sql_file:
                 return sql_file.read()
 
-        self.build: Callable[[Optional[str], Optional[str]], str] = _build
+        self._load_query: Callable[
+            [Optional[str], Optional[str]], Optional[str]] = load_query
 
-    def prepare_for_select(self, query: Optional[str], sql_path: Optional[str],
-                           func: Callable, *args, **kwargs) -> SqlBinder:
+    def build(self, *, query: Optional[str],
+              sql_path: Optional[str]) -> Optional[str]:
 
-        prepared_sql: Optional[str] = self.build(
-            query=query, sql_path=sql_path)
-        if prepared_sql is None:
-            raise exceptions.NoQueryArgumentException()
+        if (query is None) and (sql_path is None):
+            return None
+        if (query is not None) and (sql_path is not None):
+            raise exceptions.DuplicatedQueryArgumentException()
 
-        return self._do_prepare_query(prepared_sql, func, *args, **kwargs)
-
-    def _do_prepare_query(self, prepared_sql: str,
-                          func: Callable, *args, **kwargs) -> SqlBinder:
-
-        bind_params: dict = _merge_arguments_to_dict(func, *args, **kwargs)
-        return SqlBinder(prepared_sql, bind_params)
-
-    def prepare_for_insert(self, query: Optional[str], sql_path: Optional[str],
-                           table_name: Optional[str], except_values: List[Any],
-                           func: Callable, *args, **kwargs) -> SqlBinder:
-
-        prepared_sql: Optional[str] = self.build(
-            query=query, sql_path=sql_path)
-        if prepared_sql is not None:
-            return self._do_prepare_query(prepared_sql, func, *args, **kwargs)
-
-        # TODO 挿入対象がListで複数指定された場合
-        entity: Optional[Any] = _find_entity(
-            func, except_values, *args, **kwargs)
-        target_table_name: Optional[str] = table_name if table_name \
-            else getattr(entity, "_table_name", None)
-        if target_table_name is None:
-            raise exceptions.NotFoundTableNameException(
-                entity, "insert", "_table_name")
-
-        bind_params: dict = {
-            key: value for key, value in vars(entity).items()
-            if (value is not None) and (key != "_table_name")
-        }
-        prepared_sql: str = (
-            f"INSERT INTO {target_table_name}"
-            f"({', '.join([f'{param}' for param in bind_params.keys()])})"
-            f" VALUES "
-            f"({', '.join([f':{param}' for param in bind_params.keys()])})"
-        )
-
-        return SqlBinder(prepared_sql, bind_params)
+        return self._load_query(query, sql_path)
 
 
 def _do_build(base_query: str) -> str:
@@ -193,7 +136,7 @@ def _peer_prepared_param(base_index: int, base_query: str, max_index: int):
         dummy_value, index = _peer_text(index, base_query, max_index)
         return (parameter_name, index)
 
-    # TODO 「/* :param */( ...)」 のパターンの処理
+    # TODO 「IN /* :param */(...)」 のパターンの処理
 
     while index < max_index:
         next_charactor: str = base_query[index]

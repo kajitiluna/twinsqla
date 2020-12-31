@@ -1,12 +1,12 @@
 from typing import Callable, Type, Any, List, Optional
+from collections import OrderedDict
 from inspect import signature
 
-from .exceptions import NoSpecifiedEntityException
 from .exceptions import NoSpecifiedInstanceException
 
 
 def _find_instance(obj_type: Type[Any], obj_names: List[str],
-                   func: Callable, *args, **kwargs) -> Any:
+                   func: Callable, args: tuple, kwargs: dict) -> Any:
 
     own_obj = getattr(func, "__self__", None) or (
         args[0] if signature(func).parameters.get("self") and len(args) > 0
@@ -51,29 +51,30 @@ def _find_instance_fullscan(obj_type: Type[Any], values) -> Optional[Any]:
     return None
 
 
-def _find_entity(func: Callable, except_list: list, *args, **kwargs) -> Any:
-    if "entity" in kwargs:
-        return kwargs["entity"]
+def _merge_arguments_to_dict(func: Callable, args: tuple, kwargs: dict,
+                             except_values: list = []) -> OrderedDict:
 
-    index_start: int = 1 if signature(func).parameters.get("self") else 0
-    for target in args[index_start:]:
-        if target not in except_list:
-            return target
-
-    raise NoSpecifiedEntityException(func)
-
-
-def _merge_arguments_to_dict(func: Callable, *args, **kwargs) -> dict:
-    if not args:
-        return kwargs
-
-    key_values: dict = kwargs
     func_signature: signature = signature(func)
+    key_values: OrderedDict = OrderedDict()
 
-    positional_args_dict: dict = {
-        name: value for name, value in zip(
-            func_signature.parameters.keys(), args
-        ) if name != "self"
-    }
-    key_values.update(positional_args_dict)
+    param_names: List[str] = list(func_signature.parameters.keys())
+    target_args: tuple = args
+    if param_names[0] == "self":
+        param_names = param_names[1:]
+        target_args = target_args[1:]
+
+    for index, param_name in enumerate(param_names):
+        if index < len(target_args):
+            param_value: Any = target_args[index]
+            if param_value not in except_values:
+                key_values[param_name] = param_value
+            continue
+
+        if not kwargs:
+            break
+
+        param_value: Optional[Any] = kwargs.get(param_name)
+        if (param_value is not None) and (param_names not in except_values):
+            key_values[param_name] = param_value
+
     return key_values

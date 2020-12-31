@@ -4,6 +4,7 @@ from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from enum import Enum
 import functools
 import re
 import threading
@@ -14,9 +15,12 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.session import Session
 from sqlalchemy.engine.result import ResultProxy, RowProxy
 
-from ._sqlbuilder import SqlBuilder, SqlBinder
-from ._support import _find_instance
-from .exceptions import InvalidTableNameException
+from ._sqlbuilder import SqlBuilder
+from ._querybindbuilder import (
+    QueryBindBuilder, SelectBindBuilder, InsertBindBuilder, SqlBinder
+)
+from ._support import _find_instance, _merge_arguments_to_dict
+from . import exceptions
 
 
 class TWinSQLA:
@@ -162,7 +166,7 @@ _PATTERN_TABLE_NAME = re.compile(r"\A[a-zA-Z_][a-zA-Z0-9_]*\Z")
 def Table(name: str):
     matcher: Optional[re.Match] = _PATTERN_TABLE_NAME.fullmatch(name)
     if matcher is None:
-        raise InvalidTableNameException(name, _PATTERN_TABLE_NAME)
+        raise exceptions.InvalidTableNameException(name, _PATTERN_TABLE_NAME)
 
     def _table(cls):
         cls._table_name = name
@@ -212,37 +216,16 @@ def select(query: Optional[str] = None, *, sql_path: Optional[str] = None,
     return _do_select(query, sql_path, result_type, iteratable)
 
 
-def _do_select(
-    query: Optional[str], sql_path: Optional[str], result_type: Type[Any],
-    iteratable: bool, sqla: Optional[TWinSQLA] = None
-):
+def _do_select(query: Optional[str], sql_path: Optional[str],
+               result_type: Type[Any], iteratable: bool,
+               sqla: Optional[TWinSQLA] = None):
 
-    target_query: Optional[str] = query
-
-    def _select(func: Callable):
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Union[
-            List[result_type], ResultIterator[result_type], None
-        ]:
-
-            sqla_obj: TWinSQLA = sqla if sqla \
-                else _find_twinsqla(func, *args, **kwargs)
-            sql_binder: SqlBinder = sqla_obj._sql_builder.prepare_for_select(
-                target_query, sql_path, func, *args, **kwargs
-            )
-
-            results: ResultProxy = sqla_obj._execute_query(sql_binder)
-
-            if result_type is None:
-                return None
-            if iteratable is True:
-                return ResultIterator[result_type](results)
-            return [result_type(**OrderedDict(result)) for result in results]
-
-        return wrapper
-
-    return _select
+    return QueryType.SELECT.query_decorator(
+        sqla=sqla,
+        query=query, sql_path=sql_path,
+        result_type=result_type,
+        iteratable=iteratable
+    )
 
 
 def insert(query: Optional[str] = None, *, sql_path: Optional[str] = None,
@@ -284,40 +267,66 @@ def _do_insert(query: Optional[str], sql_path: Optional[str],
                table_name: Optional[str], result_type: Type[Any],
                iteratable: bool, sqla: Optional[TWinSQLA] = None):
 
-    target_query: Optional[str] = query
-
-    def _insert(func: Callable):
-        target_func: Callable = func
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Union[
-            List[result_type], ResultIterator[result_type], None
-        ]:
-
-            sqla_obj: TWinSQLA = sqla if sqla \
-                else _find_twinsqla(target_func, *args, **kwargs)
-            sql_binder: SqlBinder = sqla_obj._sql_builder.prepare_for_insert(
-                target_query, sql_path, table_name, [sqla_obj],
-                func, *args, **kwargs
-            )
-
-            results: ResultProxy = sqla_obj._execute_query(sql_binder)
-
-            if result_type is None:
-                return None
-            if iteratable is True:
-                return ResultIterator[result_type](results)
-            return [result_type(**OrderedDict(result)) for result in results]
-
-        return wrapper
-
-    return _insert
-
-
-def _find_twinsqla(func: Callable, *args, **kwargs) -> TWinSQLA:
-    return _find_instance(
-        TWinSQLA, ["sqla", "twinsqla"], func, *args, **kwargs
+    return QueryType.INSERT.query_decorator(
+        sqla=sqla,
+        query=query, sql_path=sql_path, table_name=table_name,
+        result_type=result_type, iteratable=iteratable
     )
+
+
+class QueryExecutor():
+    def __init__(self, binder: QueryBindBuilder):
+        self.bind_builder = binder
+
+    def query_decorator(self, sqla: Optional[TWinSQLA] = None,
+                        query: Optional[str] = None,
+                        sql_path: Optional[str] = None,
+                        table_name: Optional[str] = None,
+                        result_type: Type[Any] = None,
+                        iteratable: bool = False):
+
+        def _execute(func: Callable):
+
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs) -> Union[
+                List[result_type], ResultIterator[result_type], None
+            ]:
+
+                sqla_obj: TWinSQLA = sqla if sqla \
+                    else _find_twinsqla(func, args, kwargs)
+                bind_params: dict = _merge_arguments_to_dict(
+                    func, args, kwargs, [sqla_obj])
+                sql_binder: SqlBinder = self.bind_builder.bind(
+                    sqla_obj._sql_builder, query, sql_path, table_name,
+                    bind_params
+                )
+
+                results: ResultProxy = sqla_obj._execute_query(sql_binder)
+
+                if result_type is None:
+                    return None
+                if iteratable is True:
+                    return ResultIterator[result_type](results)
+                return [result_type(**OrderedDict(result))
+                        for result in results]
+
+            return wrapper
+
+        return _execute
+
+
+def _find_twinsqla(func: Callable, args: tuple, kwargs: dict) -> TWinSQLA:
+    return _find_instance(
+        TWinSQLA, ["sqla", "twinsqla"], func, args, kwargs
+    )
+
+
+class QueryType(Enum):
+    SELECT = QueryExecutor(SelectBindBuilder())
+    INSERT = QueryExecutor(InsertBindBuilder())
+
+    def query_decorator(self, *args, **kwargs):
+        return self.value.query_decorator(*args, **kwargs)
 
 
 RESULT_TYPE = TypeVar("RESULT_TYPE")
@@ -334,6 +343,3 @@ class ResultIterator(Generic[RESULT_TYPE]):
     def __next__(self) -> RESULT_TYPE:
         next_value: RowProxy = self.result_proxy.next()
         return RESULT_TYPE(**dict(next_value))
-
-
-TWinSQLA.select.__doc__ = _do_select.__doc__
