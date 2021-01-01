@@ -24,7 +24,7 @@ TWinSQLA is a light framework for mapping SQL statements to python functions or 
 
     class StaffDao():
         @sqla.select("SELECT * FROM staff WHERE staff_id = /* :staff_id */1")
-        def select(self, staff_id: int) -> Optional[Staff]:
+        def find_by_id(self, staff_id: int) -> Optional[Staff]:
             pass
     ```
 
@@ -32,6 +32,7 @@ TWinSQLA is a light framework for mapping SQL statements to python functions or 
 
     - staff.py
     ```python
+    from typing import List
     from dataclasses import dataclass
 
     @dataclass(frozen=True)
@@ -52,7 +53,7 @@ TWinSQLA is a light framework for mapping SQL statements to python functions or 
 
         @twinsqla.select(
             "SELECT * FROM staff WHERE staff_id >= /* :more_than_id */2",
-            result_type=Staff
+            result_type=List[Staff]
         )
         def fetch(self, more_than_id: int) -> List[Staff]:
             pass

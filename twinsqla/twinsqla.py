@@ -2,7 +2,6 @@ from typing import Callable, Any, List, Tuple, Optional, Union
 from typing import Type, TypeVar, Generic
 from collections import OrderedDict
 from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from enum import Enum
 import functools
@@ -21,11 +20,15 @@ from ._querybindbuilder import (
     InsertBindBuilder, UpdateBindBuilder, DeleteBindBuilder,
     QueryContext, PreparedQuery
 )
+from ._resultbuilder import ResultTypeBuilder, ResultType
 from ._support import description, _find_instance, _merge_arguments_to_dict
 from . import exceptions
 
 
-@description((("engine", "_engine"), ("sql_builder", "_sql_builder")))
+@description(
+    (("engine", "_engine"), ("sql_builder", "_sql_builder"),
+     ("type_builder", "_type_builder"))
+)
 class TWinSQLA:
 
     def __init__(self, engine: sqlalchemy.engine.base.Engine, *,
@@ -36,6 +39,7 @@ class TWinSQLA:
         self._sessionmaker: sessionmaker = sessionmaker(bind=engine)
         self._sql_builder: SqlBuilder = SqlBuilder(
             sql_file_root=sql_file_root, cache_size=cache_size)
+        self._type_builder: ResultTypeBuilder = ResultTypeBuilder(cache_size)
         self._locals: threading.local = threading.local()
 
     @contextmanager
@@ -516,7 +520,7 @@ class QueryExecutor():
 
             @functools.wraps(func)
             def wrapper(*args, **kwargs) -> Union[
-                List[result_type], ResultIterator[result_type], None
+                Optional[Any], Tuple[Any], ResultIterator[Any]
             ]:
 
                 sqla_obj: TWinSQLA = sqla if sqla \
@@ -538,10 +542,11 @@ class QueryExecutor():
 
                 if result_type is None:
                     return None
-                if iteratable is True:
-                    return ResultIterator[result_type](results)
-                return [result_type(**OrderedDict(result))
-                        for result in results]
+                return_type: ResultType[Any] = \
+                    sqla_obj._type_builder.build(result_type)
+
+                return return_type.to_values(results) if iteratable is False \
+                    else ResultIterator[Any](results, return_type)
 
             return wrapper
 
@@ -567,14 +572,19 @@ class QueryType(Enum):
 RESULT_TYPE = TypeVar("RESULT_TYPE")
 
 
-@dataclass(frozen=True)
+@description(("result_proxy", "result_type"))
 class ResultIterator(Generic[RESULT_TYPE]):
 
-    result_proxy: ResultProxy
+    def __init__(self, result_proxy: ResultProxy, result_type: ResultType):
+        self.result_proxy: ResultProxy = result_proxy
+        self.result_type: ResultType = result_type
 
     def __iter__(self):
         return self
 
     def __next__(self) -> RESULT_TYPE:
         next_value: RowProxy = self.result_proxy.next()
-        return RESULT_TYPE(**dict(next_value))
+        return self.result_type.to_value(next_value)
+
+    def close(self) -> None:
+        self.result_proxy.close()
