@@ -4,8 +4,9 @@ from abc import ABCMeta, abstractmethod
 
 import sqlalchemy
 
-from . import exceptions
+from ._support import description
 from ._sqlbuilder import SqlBuilder
+from . import exceptions
 
 
 class PreparedQuery:
@@ -72,6 +73,7 @@ class QueryContext():
         return target_table_name
 
 
+@description()
 class QueryBindBuilder(metaclass=ABCMeta):
     @abstractmethod
     def bind(self, builder: SqlBuilder, context: QueryContext
@@ -79,6 +81,7 @@ class QueryBindBuilder(metaclass=ABCMeta):
         pass
 
 
+@description()
 class SelectBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
@@ -91,6 +94,7 @@ class SelectBindBuilder(QueryBindBuilder):
         return PreparedQuery(prepared_sql, context.bind_params)
 
 
+@description()
 class InsertBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
@@ -114,6 +118,7 @@ class InsertBindBuilder(QueryBindBuilder):
         return PreparedQuery(prepared_sql, bind_parameters)
 
 
+@description()
 class UpdateBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
@@ -136,6 +141,33 @@ class UpdateBindBuilder(QueryBindBuilder):
         ]
         prepared_sql: str = \
             f"UPDATE {table_name} SET {', '.join(updating_columns)}" + (
+                f" WHERE {' AND '.join(filter_conditions)}"
+                if filter_conditions else ""
+            )
+
+        return PreparedQuery(prepared_sql, bind_parameters)
+
+
+@description()
+class DeleteBindBuilder(QueryBindBuilder):
+    def bind(self, builder: SqlBuilder, context: QueryContext
+             ) -> PreparedQuery:
+
+        prepared_sql: Optional[str] = builder.build(
+            query=context.query, sql_path=context.sql_path)
+        if prepared_sql is not None:
+            return PreparedQuery(prepared_sql, context.bind_params)
+
+        structure: Tuple[str, List[dict]] = context.init_structure("delete")
+        table_name: str = structure[0]
+        bind_parameters: List[dict] = structure[1]
+
+        filter_conditions: List[str] = [
+            f"{column} = :{column}" for column in context.condition_columns
+        ]
+        # TODO 削除対象のPKをまとめて1クエリで記載する
+        prepared_sql: str = \
+            f"DELETE FROM {table_name}" + (
                 f" WHERE {' AND '.join(filter_conditions)}"
                 if filter_conditions else ""
             )

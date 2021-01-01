@@ -1,8 +1,31 @@
-from typing import Callable, Type, Any, List, Optional
+from typing import Callable, Type, Any, List, Tuple, Optional, Union
 from collections import OrderedDict
 from inspect import signature
 
 from .exceptions import NoSpecifiedInstanceException
+
+
+def description(
+    field_names: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+):
+
+    def _description(cls):
+        def descript_repr(self) -> str:
+            fields: List[str] = [] if field_names is None else ([
+                f"{field_names}:{repr(getattr(self, field_names, None))}"
+            ] if isinstance(field_names, str) else [
+                f"{field[0]}:{repr(getattr(self, field[1], None))}"
+                if isinstance(field, tuple)
+                else f"{field}:{repr(getattr(self, field, None))}"
+                for field in field_names
+            ])
+            return f"{type(self).__name__}({', '.join(fields)})"
+
+        cls.__repr__ = descript_repr
+
+        return cls
+
+    return _description
 
 
 def _find_instance(obj_type: Type[Any], obj_names: List[str],

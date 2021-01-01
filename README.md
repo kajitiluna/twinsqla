@@ -1,12 +1,14 @@
 # TWinSQLA
 
-TWinSQLA is a database access framework for Python3.
+TWinSQLA is a light framework for mapping SQL statements to python functions or methods.
 
 ## Features
-- Tow Way SQL template.
+- Available in Python 3.7+
+- Since [SQLAlchemy](https://github.com/sqlalchemy/sqlalchemy) core is used for accessing databases,
+    SQLAlchemy core features can be utilized. (such as connection pool)
+- Support "two-way SQL" template.
     - Inspired by [Doma](https://github.com/domaframework/doma)
 - Type hint support.
-- Depending on SQLAlchemy for connection to databases, connection pooling, transaction management, and so on.
 
 ## Usage
 

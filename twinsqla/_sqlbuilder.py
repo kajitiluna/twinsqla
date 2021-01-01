@@ -4,9 +4,11 @@ from pathlib import Path
 from functools import lru_cache
 import re
 
+from ._support import description
 from . import exceptions
 
 
+@description(("sql_file_root", "cache_size"))
 class SqlBuilder:
 
     def __init__(self, sql_file_root: Optional[Union[Path, str]] = None,
@@ -32,6 +34,8 @@ class SqlBuilder:
 
         self._load_query: Callable[
             [Optional[str], Optional[str]], Optional[str]] = load_query
+        self.sql_file_root: Path = sql_root.resolve()
+        self.cache_size: Optional[int] = cache_size
 
     def build(self, *, query: Optional[str],
               sql_path: Optional[str]) -> Optional[str]:

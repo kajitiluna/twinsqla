@@ -17,13 +17,15 @@ from sqlalchemy.engine.result import ResultProxy, RowProxy
 
 from ._sqlbuilder import SqlBuilder
 from ._querybindbuilder import (
-    QueryBindBuilder, SelectBindBuilder, InsertBindBuilder, UpdateBindBuilder,
+    QueryBindBuilder, SelectBindBuilder,
+    InsertBindBuilder, UpdateBindBuilder, DeleteBindBuilder,
     QueryContext, PreparedQuery
 )
-from ._support import _find_instance, _merge_arguments_to_dict
+from ._support import description, _find_instance, _merge_arguments_to_dict
 from . import exceptions
 
 
+@description((("engine", "_engine"), ("sql_builder", "_sql_builder")))
 class TWinSQLA:
 
     def __init__(self, engine: sqlalchemy.engine.base.Engine, *,
@@ -78,7 +80,7 @@ class TWinSQLA:
                iteratable: bool = False):
         """
         Function decorator of select operation.
-        Only one argument 'query' or 'sql_path' must be specified.
+        Only one argument `query` or `sql_path` must be specified.
 
         In called decorated method, the processing implemented by the method
         is not executed, but arguments of method are used for bind parameters.
@@ -123,12 +125,12 @@ class TWinSQLA:
         """
         Function decorator of insert operation.
         In constructing insert query by yourself, you need to specify either
-        one of the arguments 'query' or 'sql_path'.
+        one of the arguments `query` or `sql_path`.
 
-        In neither 'query' nor 'sql_path' are specified, this decorator creates
+        In neither `query` nor `sql_path` are specified, this decorator creates
         insert query with arguments of decorated method.
         In this case, you need to specify inserted table name by decorator
-        argument 'table_name' or decorating '@twinsqla.Table' to entity class.
+        argument 'table_name' or decorating '@twinsqla.table' to entity class.
 
         Args:
             query (Optional[str], optional):
@@ -160,13 +162,13 @@ class TWinSQLA:
         """
         Function decorator of update operation.
         In constructing update query by yourself, you need to specify either
-        one of the arguments 'query' or 'sql_path'.
+        one of the arguments `query` or `sql_path`.
 
-        In neither 'query' nor 'sql_path' are specified, this decorator creates
+        In neither `query` nor `sql_path` are specified, this decorator creates
         update query with arguments of decorated method.
         In this case, you need follows.
             1. To specify updated table name by decorator argument 'table_name'
-                or by decorating '@twinsqla.Table' to entity class.
+                or by decorating '@twinsqla.table' to entity class.
             2. To specifry the column names for using WHERE conditions
                 by decorator argument 'condition_columns'
 
@@ -196,6 +198,50 @@ class TWinSQLA:
         return _do_update(query, sql_path, table_name, condition_columns,
                           result_type, iteratable, sqla=self)
 
+    def delete(self, query: Optional[str] = None, *,
+               sql_path: Optional[str] = None,
+               table_name: Optional[str] = None,
+               condition_columns: Union[str, Tuple[str, ...]] = (),
+               result_type: Type[Any] = None, iteratable: bool = False):
+        """
+        Function decorator of delete operation.
+        In constructing delete query by yourself, you need to specify either
+        one of the arguments `query` or `sql_path`.
+
+        In neither `query` nor `sql_path` are specified, this decorator creates
+        delete query with arguments of decorated method.
+        In this case, you need follows.
+            1. To specify deleted table name by decorator argument 'table_name'
+                or by decorating '@twinsqla.table' to entity class.
+            2. To specifry the column names for using WHERE conditions
+                by decorator argument 'condition_columns'
+
+        Args:
+            query (Optional[str], optional):
+                delete query (available TwoWay SQL). Defaults to None.
+            sql_path (Optional[str], optional):
+                file path with sql (available TwoWay SQL). Defaults to None.
+            table_name (Optional[str], optional):
+                table name for deleting. Defaults to None.
+            condition_columns (Union[str, Tuple[str, ...]], optional):
+                column names in WHERE condition. In almost cases, you are
+                recommended to specify primary key names of the table.
+                Defaults to ().
+            result_type (Type[Any], optional):
+                When constructing "DELETE RETURNING" query, it is useful to
+                specify return type. Defaults to None.
+            iteratable (bool, optional):
+                In almost cases, this argument need not to specified.
+                The only useful case is in using "DELETE RETURNING" query.
+                Defaults to False.
+
+        Returns:
+            Callable: Function decorator for delete query
+        """
+
+        return _do_delete(query, sql_path, table_name, condition_columns,
+                          result_type, iteratable, sqla=self)
+
     def _execute_query(self, prepared: PreparedQuery) -> ResultProxy:
         query: sqlalchemy.sql.text = prepared.statement()
         bind_params: Union[dict, List[dict]] = prepared.bind_params()
@@ -208,7 +254,24 @@ class TWinSQLA:
 _PATTERN_TABLE_NAME = re.compile(r"\A[a-zA-Z_][a-zA-Z0-9_]*\Z")
 
 
-def Table(name: str):
+def table(name: str):
+    """
+    Class decorator to specify table name.
+    It is useful in the case using `@insert`, `@update` or `@delete` without
+    your query. By decorating `@table` to entity class, those function
+    decorators can specify the table name in constructing queries.
+
+    Args:
+        name (str): table name
+
+    Raises:
+        exceptions.InvalidTableNameException:
+            if `name` contained invalid charactors for table name.
+
+    Returns:
+        Callable: class decorator
+    """
+
     matcher: Optional[re.Match] = _PATTERN_TABLE_NAME.fullmatch(name)
     if matcher is None:
         raise exceptions.InvalidTableNameException(name, _PATTERN_TABLE_NAME)
@@ -224,7 +287,7 @@ def select(query: Optional[str] = None, *, sql_path: Optional[str] = None,
            result_type: Type[Any] = OrderedDict, iteratable: bool = False):
     """
     Function decorator of select operation.
-    Only one argument 'query' or 'sql_path' must be specified.
+    Only one argument `query` or `sql_path` must be specified.
 
     In called decorated method, the processing implemented by the method
     is not executed, but arguments of method are used for bind parameters.
@@ -277,12 +340,12 @@ def insert(query: Optional[str] = None, *, sql_path: Optional[str] = None,
     """
     Function decorator of insert operation.
     In constructing insert query by yourself, you need to specify either
-    one of the arguments 'query' or 'sql_path'.
+    one of the arguments `query` or `sql_path`.
 
-    In neither 'query' nor 'sql_path' are specified, this decorator creates
+    In neither `query` nor `sql_path` are specified, this decorator creates
     insert query with arguments of decorated method.
     In this case, you need to specify inserted table name by decorator
-    argument 'table_name' or decorating '@twinsqla.Table' to entity class.
+    argument 'table_name' or decorating '@twinsqla.table' to entity class.
 
     Args:
         query (Optional[str], optional):
@@ -323,13 +386,13 @@ def update(query: Optional[str] = None, *, sql_path: Optional[str] = None,
     """
     Function decorator of update operation.
     In constructing update query by yourself, you need to specify either
-    one of the arguments 'query' or 'sql_path'.
+    one of the arguments `query` or `sql_path`.
 
-    In neither 'query' nor 'sql_path' are specified, this decorator creates
+    In neither `query` nor `sql_path` are specified, this decorator creates
     update query with arguments of decorated method.
     In this case, you need follows.
         1. To specify updated table name by decorator argument 'table_name'
-            or by decorating '@twinsqla.Table' to entity class.
+            or by decorating '@twinsqla.table' to entity class.
         2. To specifry the column names for using WHERE conditions
             by decorator argument 'condition_columns'
 
@@ -376,6 +439,67 @@ def _do_update(query: Optional[str], sql_path: Optional[str],
     )
 
 
+def delete(query: Optional[str] = None, *, sql_path: Optional[str] = None,
+           table_name: Optional[str] = None,
+           condition_columns: Union[str, Tuple[str, ...]] = (),
+           result_type: Type[Any] = None, iteratable: bool = False):
+    """
+    Function decorator of delete operation.
+    In constructing delete query by yourself, you need to specify either
+    one of the arguments `query` or `sql_path`.
+
+    In neither `query` nor `sql_path` are specified, this decorator creates
+    delete query with arguments of decorated method.
+    In this case, you need follows.
+        1. To specify deleted table name by decorator argument 'table_name'
+            or by decorating '@twinsqla.table' to entity class.
+        2. To specifry the column names for using WHERE conditions
+            by decorator argument 'condition_columns'
+
+    Args:
+        query (Optional[str], optional):
+            delete query (available TwoWay SQL). Defaults to None.
+        sql_path (Optional[str], optional):
+            file path with sql (available TwoWay SQL). Defaults to None.
+        table_name (Optional[str], optional):
+            table name for deleting. Defaults to None.
+        condition_columns (Union[str, Tuple[str, ...]], optional):
+            column names in WHERE condition. In almost cases, you are
+            recommended to specify primary key names of the table.
+            Defaults to ().
+        result_type (Type[Any], optional):
+            When constructing "DELETE RETURNING" query, it is useful to
+            specify return type. Defaults to None.
+        iteratable (bool, optional):
+            In almost cases, this argument need not to specified.
+            The only useful case is in using "DELETE RETURNING" query.
+            Defaults to False.
+
+    Returns:
+        Callable: Function decorator for delete query
+    """
+
+    return _do_delete(query, sql_path, table_name, condition_columns,
+                      result_type, iteratable)
+
+
+def _do_delete(query: Optional[str], sql_path: Optional[str],
+               table_name: Optional[str],
+               condition_columns: Union[str, Tuple[str, ...]],
+               result_type: Type[Any], iteratable: bool,
+               sqla: Optional[TWinSQLA] = None):
+
+    target_condition_columns: Tuple[str, ...] = condition_columns \
+        if isinstance(condition_columns, tuple) else (condition_columns, )
+
+    return QueryType.DELETE.query_decorator(
+        sqla=sqla, query=query, sql_path=sql_path,
+        table_name=table_name, condition_columns=target_condition_columns,
+        result_type=result_type, iteratable=iteratable
+    )
+
+
+@description("bind_builder")
 class QueryExecutor():
     def __init__(self, binder: QueryBindBuilder):
         self.bind_builder: QueryBindBuilder = binder
@@ -423,12 +547,6 @@ class QueryExecutor():
 
         return _execute
 
-    def __repr__(self):
-        return (
-            f"<{self.__module__}.{type(self).__name__}:"
-            f" bind_builder:{self.bind_builder}>"
-        )
-
 
 def _find_twinsqla(func: Callable, args: tuple, kwargs: dict) -> TWinSQLA:
     return _find_instance(
@@ -440,6 +558,7 @@ class QueryType(Enum):
     SELECT = QueryExecutor(SelectBindBuilder())
     INSERT = QueryExecutor(InsertBindBuilder())
     UPDATE = QueryExecutor(UpdateBindBuilder())
+    DELETE = QueryExecutor(DeleteBindBuilder())
 
     def query_decorator(self, *args, **kwargs):
         return self.value.query_decorator(*args, **kwargs)
