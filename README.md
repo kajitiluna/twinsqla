@@ -4,10 +4,20 @@ TWinSQLA is a light framework for mapping SQL statements to python functions or 
 
 ## Features
 - Available in Python 3.7+
-- Since [SQLAlchemy](https://github.com/sqlalchemy/sqlalchemy) core is used for accessing databases,
-    SQLAlchemy core features can be utilized. (such as connection pool)
+- This framework concept is avoid ORM features!
+    Coding with almost-raw SQL query (with prepared parameters) simply.
+    - Let's consider that you coding with ORM features in accessing databases.
+        For example, you want to fetch records form a table.
+        First, you think SQL query for fetching records (you may be executing query for checking results!),
+        and you convert raw sql query to python's functions with ORM features.
+        And more, you will check the result of executing program with ORM features.
+    - If you can use SQL query with coding simply, it make you to skipping the times of converting python coding
+        with ORM features and checking result.python coding with ORM features.
+    - TWinSQLA support you to checking only SQL query without coding with ORM features.
 - Support "two-way SQL" template.
     - Inspired by [Doma](https://github.com/domaframework/doma)
+- Since [SQLAlchemy](https://github.com/sqlalchemy/sqlalchemy) core is used for accessing databases,
+    SQLAlchemy core features can be utilized. (such as connection pool)
 - Type hint support.
 
 ## Usage
