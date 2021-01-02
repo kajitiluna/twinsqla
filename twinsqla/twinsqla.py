@@ -53,9 +53,9 @@ class TWinSQLA:
             sqlalchemy.orm.session.Session: session object
         """
 
-        yield (self._transaction_first()
-               if not getattr(self._locals, 'session', None)
-               else self._transaction_nested())
+        return (self._transaction_first()
+                if not getattr(self._locals, 'session', None)
+                else self._transaction_nested())
 
     def _transaction_first(self):
         session: Session = self._sessionmaker()
@@ -80,7 +80,7 @@ class TWinSQLA:
 
     def select(self, query: Optional[str] = None, *,
                sql_path: Optional[str] = None,
-               result_type: Type[Any] = OrderedDict,
+               result_type: Type[Any] = Tuple[OrderedDict, ...],
                iteratable: bool = False):
         """
         Function decorator of select operation.
@@ -109,7 +109,7 @@ class TWinSQLA:
             sql_path (Optional[str], optional):
                 file path with sql (available TwoWay SQL). Defaults to None.
             result_type (Type[Any], optional):
-                return type. Defaults to OrderedDict.
+                return type. Defaults to Tuple[OrderedDict, ...].
             iteratable (bool, optional):
                 When you want to fetching iterataly result,
                 then True specified and returned ResultIterator object.
@@ -288,7 +288,8 @@ def table(name: str):
 
 
 def select(query: Optional[str] = None, *, sql_path: Optional[str] = None,
-           result_type: Type[Any] = OrderedDict, iteratable: bool = False):
+           result_type: Type[Any] = Tuple[OrderedDict, ...],
+           iteratable: bool = False):
     """
     Function decorator of select operation.
     Only one argument `query` or `sql_path` must be specified.
@@ -316,7 +317,7 @@ def select(query: Optional[str] = None, *, sql_path: Optional[str] = None,
         sql_path (Optional[str], optional):
             file path with sql (available TwoWay SQL). Defaults to None.
         result_type (Type[Any], optional):
-            return type. Defaults to OrderedDict.
+            return type. Defaults to Tuple[OrderedDict, ...].
         iteratable (bool, optional):
             When you want to fetching iterataly result, then True specified
             and returned ResultIterator object. Defaults to False.

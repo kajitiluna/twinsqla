@@ -56,7 +56,7 @@ class QueryContext():
             raise exceptions.NoSpecifiedEntityException(
                 self.triggered_function)
 
-        if isinstance(target, (dict, tuple)):
+        if isinstance(target, (list, tuple)):
             return target
 
         return [target]
