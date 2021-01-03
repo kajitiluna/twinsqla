@@ -6,11 +6,12 @@ verify_ssl = true
 [dev-packages]
 autopep8 = "*"
 flake8 = "*"
+docker = "*"
+psycopg2 = "*"
+mysqlclient = "*"
 
 [packages]
 sqlalchemy = "*"
-psycopg2 = "*"
-mysqlclient = "*"
 
 [requires]
 python_version = "3.7"
