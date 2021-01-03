@@ -573,19 +573,32 @@ class QueryType(Enum):
 RESULT_TYPE = TypeVar("RESULT_TYPE")
 
 
-@description(("result_proxy", "result_type"))
+@description("result_proxy")
 class ResultIterator(Generic[RESULT_TYPE]):
+    """
+    Iterator of query result.
+    This object has `result_proxy` attribute, which is
+    `sqlalchemy.engine.result.ResultProxy` object.
+    You can use this attribute if necessary.
+
+    This object's iteration is equivalent to `ResultProxy.next()` method.
+    If you stop iteration before exhausting all rows, you need to call
+    `close()` method. It's equivalent to call `ResultProxy.close()` method.
+
+    Args:
+        Generic (result_type): type of each object
+    """
 
     def __init__(self, result_proxy: ResultProxy, result_type: ResultType):
         self.result_proxy: ResultProxy = result_proxy
-        self.result_type: ResultType = result_type
+        self._result_type: ResultType = result_type
 
     def __iter__(self):
         return self
 
     def __next__(self) -> RESULT_TYPE:
         next_value: RowProxy = self.result_proxy.next()
-        return self.result_type.to_value(next_value)
+        return self._result_type.to_value(next_value)
 
     def close(self) -> None:
         self.result_proxy.close()

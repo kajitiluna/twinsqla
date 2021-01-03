@@ -19,14 +19,16 @@ class ResultType(Generic[RESULT_TYPE]):
         self.sequencial: bool = sequencial
 
     def to_values(self, results: ResultProxy) -> Union[
-            Optional[RESULT_TYPE], Tuple[RESULT_TYPE]]:
+            Optional[RESULT_TYPE], Tuple[RESULT_TYPE, ...]]:
 
         if results.returns_rows is False:
             return () if self.sequencial is True else None
 
         if self.sequencial is False:
-            result: RowProxy = results.fetchone()
-            return self.to_value(result)
+            return_value: RESULT_TYPE = self.to_value(results.fetchone())
+            results.close()
+
+            return return_value
 
         return tuple(self.to_value(result) for result in results)
 
