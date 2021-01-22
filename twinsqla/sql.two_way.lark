@@ -66,6 +66,8 @@ expression: sql_expression
 
 sql_expression: column_term
               | text
+              | bind_param
+              | twoway_bind_text
               | case_expr
               | case
               | function
@@ -74,6 +76,7 @@ column_term: column_name
            | table_name "." column_name
 
 text: /'([^\n']|'{2})*'/
+twoway_bind_text: twoway_bind_param text
 
 case_expr: "CASE"i expression case_when+ [ case_else ] "END"i
 case_when: "WHEN"i expression "THEN"i expression
@@ -92,16 +95,34 @@ bool_expression: ( bool_expression "OR"i )* bool_and_term
 bool_and_term: ( bool_and_term "AND"i )* bool_preterm
 bool_preterm: [ "NOT"i ] bool_match_term
 
-bool_match_term: bool_term [ bool_matched_op ]
-               | bool_term ( equal_op | not_equal_op ) bool_term
+bool_match_term: bool_term_2way [ bool_matched_op ]
+               | bool_term_2way ( equal_op | not_equal_op ) bool_term_2way
                | sql_expression ( in_op | not_in_op | between | like_op | not_like_op )
+               | exists_op
                | numeric_expression compare_op numeric_expression
+
+bool_term_2way: bool_term
 
 bool_term: TRUE
          | FALSE
          | NULL
+         | bind_param
+         | twoway_bind_bool
+         | dynamic_if_bool
          | "(" bool_expression ")"
          | sql_expression
+
+twoway_bind_bool: twoway_bind_param ( TRUE | FALSE | NULL )
+
+dynamic_if_bool: dynamic_if bool_expression ( dynamic_elseif DUMMY_OP bool_expression )* [ dynamic_else DUMMY_OP bool_expression ] dynamic_end
+
+?dynamic_if: "/*%if "i python_bool_expr "*/"
+?dynamic_elseif: ( "/*%elseif "i | "/*%elif "i ) python_bool_expr "*/"
+dynamic_else: "/*%else*/"i
+dynamic_end: "/*%end*/"i
+DUMMY_OP: "OR"i | "AND"i
+
+python_bool_expr: /.+/+
 
 bool_matched_op: "IS"i "TRUE"i          -> is_true
                | "IS"i "NOT"i "TRUE"i   -> is_not_true
@@ -116,6 +137,8 @@ in_op: "IN"i "(" query_expr ")"
 between: "BETWEET"i sql_expression "AND"i sql_expression
 like_op: sql_expression "LIKE"i sql_expression
 not_like_op: sql_expression "NOT"i "LIKE"i sql_expression
+
+exists_op: "EXISTS"i "(" query_select ")"
 
 compare_op: equal_op
           | not_equal_op
@@ -140,18 +163,29 @@ numeric_factor: ( numeric_factor ( "*" | "/" | "||" ) )* numeric_presymbol
 numeric_presymbol: [ "~" ] numeric_symbol
 
 numeric_symbol: SIGNED_NUMBER
+              | bind_param
+              | twoway_bind_numeric
               | "(" numeric_expression ")"
               | sql_expression
+
+twoway_bind_numeric: twoway_bind_param SIGNED_NUMBER
 
 table_name: NAME
 column_name: NAME
 function_name: NAME [ "." NAME ]
 alias: NAME
 
+bind_param: BIND_PARAM_NAME
+BIND_PARAM_NAME: /:[a-zA-Z_]\w*/
+
+twoway_bind_param: "/*" bind_param "*/"
+
 NAME: /[a-zA-Z_]\w*/
 TRUE: "TRUE"i
 FALSE: "FALSE"i
 NULL: "NULL"i
+
+SQL_MULTILINE_COMMENT: "/**" /.*?/s "*/"
 
 %import common.SQL_COMMENT
 %import common.INT
@@ -160,5 +194,6 @@ NULL: "NULL"i
 %import common.INT
 %import common.WS
 
+%ignore SQL_MULTILINE_COMMENT
 %ignore SQL_COMMENT
 %ignore WS

@@ -42,7 +42,7 @@ class TWinSQLATest(unittest.TestCase):
     def setUpClass(cls):
         docker_configs: list = [
             {
-                "name": "tiwnsqla_postgres", "detach": True,
+                "name": "tiwnsqla_postgres",
                 "image": "postgres:9.6", "auto_remove": True,
                 "ports": {"5432/tcp": "5432"},
                 "volumes": {
@@ -58,7 +58,7 @@ class TWinSQLATest(unittest.TestCase):
                 }
             },
             {
-                "name": "tiwnsqla_mysql", "detach": True,
+                "name": "tiwnsqla_mysql",
                 "image": "mysql:5.7", "auto_remove": True,
                 "ports": {"3306/tcp": "3306"},
                 "volumes": {
@@ -91,17 +91,17 @@ class TWinSQLATest(unittest.TestCase):
             docker_client: docker.DockerClient = docker.from_env()
             print("Start docker containers.")
             cls.containers: list = [
-                docker_client.containers.run(**config)
+                docker_client.containers.run(detach=True, **config)
                 for config in docker_configs
             ]
         except Exception as exc:
-            print("Failed in initializeing docker containers."
+            print("Failed in initializing docker containers."
                   f" So forcely stopping this unit tests. Detail : {exc}")
             sys.exit(1)
 
         import time
         print("Waiting for docker containers starting.", end="", flush=True)
-        wait_seconds: int = 30
+        wait_seconds: int = 3
         for index in range(wait_seconds + 1):
             try:
                 for db_type in cls.db_types:
