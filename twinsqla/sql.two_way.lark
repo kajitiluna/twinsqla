@@ -97,8 +97,8 @@ bool_preterm: [ "NOT"i ] bool_match_term
 
 bool_match_term: bool_term_2way [ bool_matched_op ]
                | bool_term_2way ( equal_op | not_equal_op ) bool_term_2way
-               | sql_expression ( in_op | not_in_op | between | like_op | not_like_op )
                | exists_op
+               | sql_expression ( in_op | not_in_op | between | like_op | not_like_op )
                | numeric_expression compare_op numeric_expression
 
 bool_term_2way: bool_term
@@ -116,13 +116,11 @@ twoway_bind_bool: twoway_bind_param ( TRUE | FALSE | NULL )
 
 dynamic_if_bool: dynamic_if bool_expression ( dynamic_elseif DUMMY_OP bool_expression )* [ dynamic_else DUMMY_OP bool_expression ] dynamic_end
 
-?dynamic_if: "/*%if "i python_bool_expr "*/"
-?dynamic_elseif: ( "/*%elseif "i | "/*%elif "i ) python_bool_expr "*/"
+?dynamic_if: "/*%if "i python_expression "*/"
+?dynamic_elseif: ( "/*%elseif "i | "/*%elif "i ) python_expression "*/"
 dynamic_else: "/*%else*/"i
 dynamic_end: "/*%end*/"i
 DUMMY_OP: "OR"i | "AND"i
-
-python_bool_expr: /.+/+
 
 bool_matched_op: "IS"i "TRUE"i          -> is_true
                | "IS"i "NOT"i "TRUE"i   -> is_not_true
@@ -135,8 +133,8 @@ not_in_op: "NOT"i in_op
 in_op: "IN"i "(" query_expr ")"
      | "IN"i "(" [ expression ( "," expression )* ] ")"
 between: "BETWEET"i sql_expression "AND"i sql_expression
-like_op: sql_expression "LIKE"i sql_expression
-not_like_op: sql_expression "NOT"i "LIKE"i sql_expression
+like_op: "LIKE"i sql_expression
+not_like_op: "NOT"i "LIKE"i sql_expression
 
 exists_op: "EXISTS"i "(" query_select ")"
 
@@ -179,6 +177,9 @@ bind_param: BIND_PARAM_NAME
 BIND_PARAM_NAME: /:[a-zA-Z_]\w*/
 
 twoway_bind_param: "/*" bind_param "*/"
+                 | "/*" dynamic_value "*/"
+
+dynamic_value: /[a-zA-Z\(\)\+\-].*/+
 
 NAME: /[a-zA-Z_]\w*/
 TRUE: "TRUE"i
@@ -186,6 +187,8 @@ FALSE: "FALSE"i
 NULL: "NULL"i
 
 SQL_MULTILINE_COMMENT: "/**" /.*?/s "*/"
+
+%import .python_grammer.expression -> python_expression
 
 %import common.SQL_COMMENT
 %import common.INT

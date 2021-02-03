@@ -117,8 +117,8 @@ not_in_op: "NOT"i in_op
 in_op: "IN"i "(" query_expr ")"
      | "IN"i "(" [ expression ( "," expression )* ] ")"
 between: "BETWEET"i sql_expression "AND"i sql_expression
-like_op: sql_expression "LIKE"i sql_expression
-not_like_op: sql_expression "NOT"i "LIKE"i sql_expression
+like_op: "LIKE"i sql_expression
+not_like_op: "NOT"i "LIKE"i sql_expression
 
 exists_op: "EXISTS"i "(" query_select ")"
 

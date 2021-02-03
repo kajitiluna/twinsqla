@@ -9,10 +9,12 @@ SELECT DISTINCT
     END AS hoge,
     COUNT(DISTINCT 1) AS summary
 FROM some_table aaa
-ORDER BY CASE
-    WHEN aaa THEN aaa
-    ELSE bbb
-END DESC
+WHERE TRUE AND
+    /*%if some_colume == 'aaa' */
+        TRUE
+    /*%else*/
+        AND FALSE
+    /*%end*/
 """
 
 
