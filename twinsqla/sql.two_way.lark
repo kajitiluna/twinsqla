@@ -4,7 +4,7 @@ query_expr: query_select
 
 // SELECT
 
-query_select: [ with ] select_block [ order ] [ limit ]
+query_select: with? select_block order? limit?
 
 with: "WITH"i with_query ( "," with_query )*
 with_query: with_query_name "AS"i "(" query_select ")"
@@ -19,17 +19,17 @@ union_op: "UNION"i ( "ALL"i | "DISTINCT"i )
         | "EXCEPT"i "DISTINCT"i
 
 order: "ORDER"i "BY"i order_query ( "," order_query )*
-order_query: expression [ "ASC"i | "DESC"i ]
+order_query: expression ( "ASC"i | "DESC"i )?
 
-limit: "LIMIT"i INT [ "OFFSET"i INT ]
+limit: "LIMIT"i INT ( "OFFSET"i INT )?
 
-select: "SELECT"i [ "DISTINCT"i ] ( full_column | select_columns ) [ from ] [ where ] [ group ] [ having ] [ window ]
+select: "SELECT"i ( "DISTINCT"i )? ( full_column | select_columns ) from? where? group? having? window?
 
 full_column: "*"
 
 select_columns: select_column ( "," select_column )*
 
-select_column: expression [ [ "AS"i ] alias ]
+select_column: expression ( ( "AS"i )? alias )?
              | table_full_column
 
 table_full_column: table_name "." "*"
@@ -39,8 +39,8 @@ from: "FROM"i query_table ( "," query_table )*
 
 query_table: table ( join_table )*
 
-table: table_name [ [ "AS"i ] alias ]
-     | "UNNEST"i "(" array_expression ")" [ [ "AS"i ] alias ]
+table: table_name ( ( "AS"i )? alias )?
+     | "UNNEST"i "(" array_expression ")" ( ( "AS"i )? alias )?
 
 join_table: join_type table "ON"i bool_expression
 
@@ -95,7 +95,7 @@ bool_expression: ( bool_expression "OR"i )* bool_and_term
 bool_and_term: ( bool_and_term "AND"i )* bool_preterm
 bool_preterm: [ "NOT"i ] bool_match_term
 
-bool_match_term: bool_term_2way [ bool_matched_op ]
+bool_match_term: bool_term_2way bool_matched_op?
                | bool_term_2way ( equal_op | not_equal_op ) bool_term_2way
                | exists_op
                | sql_expression ( in_op | not_in_op | between | like_op | not_like_op )
@@ -114,12 +114,13 @@ bool_term: TRUE
 
 twoway_bind_bool: twoway_bind_param ( TRUE | FALSE | NULL )
 
-dynamic_if_bool: dynamic_if bool_expression ( dynamic_elseif DUMMY_OP bool_expression )* [ dynamic_else DUMMY_OP bool_expression ] dynamic_end
+dynamic_if_bool: dynamic_if bool_expression [ dynamic_elseif_phases ] [ dynamic_else_phase ] "/*%end*/"i
 
-?dynamic_if: "/*%if "i python_expression "*/"
-?dynamic_elseif: ( "/*%elseif "i | "/*%elif "i ) python_expression "*/"
-dynamic_else: "/*%else*/"i
-dynamic_end: "/*%end*/"i
+dynamic_if: "/*%if "i python_expression "*/"
+dynamic_elseif_phases: dynamic_elseif_phase+
+dynamic_elseif_phase: dynamic_elseif DUMMY_OP bool_expression
+dynamic_elseif: ( "/*%elseif "i | "/*%elif "i ) python_expression "*/"
+dynamic_else_phase: "/*%else*/"i DUMMY_OP bool_expression
 DUMMY_OP: "OR"i | "AND"i
 
 bool_matched_op: "IS"i "TRUE"i          -> is_true
@@ -170,7 +171,7 @@ twoway_bind_numeric: twoway_bind_param SIGNED_NUMBER
 
 table_name: NAME
 column_name: NAME
-function_name: NAME [ "." NAME ]
+function_name: NAME ( "." NAME )?
 alias: NAME
 
 bind_param: BIND_PARAM_NAME
@@ -179,7 +180,7 @@ BIND_PARAM_NAME: /:[a-zA-Z_]\w*/
 twoway_bind_param: "/*" bind_param "*/"
                  | "/*" dynamic_value "*/"
 
-dynamic_value: /[a-zA-Z\(\)\+\-].*/+
+dynamic_value: python_expression
 
 NAME: /[a-zA-Z_]\w*/
 TRUE: "TRUE"i

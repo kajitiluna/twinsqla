@@ -32,12 +32,14 @@ from . import exceptions
 class TWinSQLA:
 
     def __init__(self, engine: sqlalchemy.engine.base.Engine, *,
+                 available_dynamic_query: bool = True,
                  sql_file_root: Optional[Union[Path, str]] = None,
                  cache_size: Optional[int] = 128):
 
         self._engine: Engine = engine
         self._sessionmaker: sessionmaker = sessionmaker(bind=engine)
         self._sql_builder: SqlBuilder = SqlBuilder(
+            available_dynamic_query=available_dynamic_query,
             sql_file_root=sql_file_root, cache_size=cache_size)
         self._type_builder: ResultTypeBuilder = ResultTypeBuilder(cache_size)
         self._locals: threading.local = threading.local()

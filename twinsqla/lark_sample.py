@@ -1,28 +1,28 @@
 from pathlib import Path
 
-target = """
+from lark import Lark
+
+target = r"""
 SELECT DISTINCT
-    test_column1,
-    CASE
-        WHEN target_column >= /* :threathold */ 100 THEN dummy
-        WHEN TRIM(dummy_column, 5) = 'aaaa' THEN dummy
-    END AS hoge,
-    COUNT(DISTINCT 1) AS summary
+    test_column1
 FROM some_table aaa
-WHERE TRUE AND
+WHERE
     /*%if some_colume == 'aaa' */
-        TRUE
+        /* some_colume */TRUE
+    /*%elif some_colume == 'bbb' */
+        OR some_value = '10'
     /*%else*/
-        AND FALSE
+        OR FALSE
     /*%end*/
 """
 
 
 def main():
-    from lark import Lark
 
     parser = Lark.open(Path(__file__).parent / "sql.two_way.lark",
-                       start="query_statement", propagate_positions=True)
+                       start="query_statement",
+                       propagate_positions=True,
+                       maybe_placeholders=True)
     result = parser.parse(target)
     print(result)
     print(result.pretty())

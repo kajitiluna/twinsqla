@@ -5,20 +5,58 @@ from abc import ABCMeta, abstractmethod
 import sqlalchemy
 
 from ._support import description
+from ._dynamic_parser import DynamicQuery
 from ._sqlbuilder import SqlBuilder
 from . import exceptions
 
 
 class PreparedQuery:
-    def __init__(self, prepared_sql: str, parameters: Union[dict, List[dict]]):
-        self.prepared_sql: str = prepared_sql
-        self.parameters: dict = parameters
+
+    def __init__(self, prepared_sql: Union[str, DynamicQuery],
+                 parameters: Union[dict, List[dict]]):
+
+        if (isinstance(parameters, list)
+                and isinstance(prepared_sql, DynamicQuery)):
+            raise ValueError("Unexpected arguments pair.")
+
+        self.prepared_sql: str = self._init_prepared_sql(
+            prepared_sql, parameters)
+        self.parameters: Union[dict, List[dict]] = self._init_bind_param(
+            prepared_sql, parameters)
+
+    @classmethod
+    def _init_prepared_sql(cls, prepared: Union[str, DynamicQuery],
+                           parameters: Union[dict, List[dict]]) -> str:
+
+        if isinstance(prepared, str):
+            return prepared
+
+        # When prepared object is not instance of string,
+        # then parameters object must be instance of dict not list.
+        return prepared.query_func(**parameters)
+
+    @classmethod
+    def _init_bind_param(cls, prepared: Union[str, DynamicQuery],
+                         parameters: Union[dict, List[dict]]
+                         ) -> Union[dict, List[dict]]:
+
+        if isinstance(prepared, str):
+            return parameters
+
+        # When prepared object is not instance of string,
+        # then parameters object must be instance of dict not list.
+        dynamic_params: dict = {
+            key: param(**parameters)
+            for key, param in prepared.pydynamic_params.items()
+        }
+
+        return dict(parameters, **dynamic_params)
 
     def statement(self) -> sqlalchemy.sql.text:
         return sqlalchemy.sql.text(self.prepared_sql)
 
     def bind_params(self) -> Union[dict, List[dict]]:
-        return self.parameters.copy()
+        return self.parameters
 
 
 @dataclass(frozen=True)
@@ -72,6 +110,9 @@ class QueryContext():
 
         return target_table_name
 
+    def arg_keys(self) -> Tuple[str]:
+        return tuple(self.bind_params.keys())
+
 
 @description()
 class QueryBindBuilder(metaclass=ABCMeta):
@@ -86,8 +127,9 @@ class SelectBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
 
-        prepared_sql: Optional[str] = builder.build(
-            query=context.query, sql_path=context.sql_path)
+        prepared_sql: Optional[Union[str, DynamicQuery]] = builder.build(
+            query=context.query, sql_path=context.sql_path,
+            arg_keys=context.arg_keys())
         if prepared_sql is None:
             raise exceptions.NoQueryArgumentException()
 
@@ -99,8 +141,9 @@ class InsertBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
 
-        prepared_sql: Optional[str] = builder.build(
-            query=context.query, sql_path=context.sql_path)
+        prepared_sql: Optional[Union[str, DynamicQuery]] = builder.build(
+            query=context.query, sql_path=context.sql_path,
+            arg_keys=context.arg_keys())
         if prepared_sql is not None:
             return PreparedQuery(prepared_sql, context.bind_params)
 
@@ -123,8 +166,9 @@ class UpdateBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
 
-        prepared_sql: Optional[str] = builder.build(
-            query=context.query, sql_path=context.sql_path)
+        prepared_sql: Optional[Union[str, DynamicQuery]] = builder.build(
+            query=context.query, sql_path=context.sql_path,
+            arg_keys=context.arg_keys())
         if prepared_sql is not None:
             return PreparedQuery(prepared_sql, context.bind_params)
 
@@ -153,8 +197,9 @@ class DeleteBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
 
-        prepared_sql: Optional[str] = builder.build(
-            query=context.query, sql_path=context.sql_path)
+        prepared_sql: Optional[Union[str, DynamicQuery]] = builder.build(
+            query=context.query, sql_path=context.sql_path,
+            arg_keys=context.arg_keys())
         if prepared_sql is not None:
             return PreparedQuery(prepared_sql, context.bind_params)
 
