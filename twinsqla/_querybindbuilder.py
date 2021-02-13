@@ -122,10 +122,21 @@ class QueryContext():
 
 @description()
 class QueryBindBuilder(metaclass=ABCMeta):
+
     @abstractmethod
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
         pass
+
+    def _bind_from_query(self, builder: SqlBuilder, context: QueryContext
+                         ) -> Optional[PreparedQuery]:
+
+        prepared_sql: Optional[Union[str, DynamicQuery]] = builder.build(
+            query=context.query, sql_path=context.sql_path,
+            arg_keys=context.arg_keys())
+
+        return PreparedQuery(prepared_sql, context.bind_params) \
+            if prepared_sql is not None else None
 
 
 @description()
@@ -133,13 +144,12 @@ class SelectBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
 
-        prepared_sql: Optional[Union[str, DynamicQuery]] = builder.build(
-            query=context.query, sql_path=context.sql_path,
-            arg_keys=context.arg_keys())
-        if prepared_sql is None:
+        prepared_query: Optional[PreparedQuery] = self._bind_from_query(
+            builder, context)
+        if prepared_query is None:
             raise exceptions.NoQueryArgumentException()
 
-        return PreparedQuery(prepared_sql, context.bind_params)
+        return prepared_query
 
 
 @description()
@@ -147,11 +157,10 @@ class InsertBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
 
-        prepared_sql: Optional[Union[str, DynamicQuery]] = builder.build(
-            query=context.query, sql_path=context.sql_path,
-            arg_keys=context.arg_keys())
-        if prepared_sql is not None:
-            return PreparedQuery(prepared_sql, context.bind_params)
+        prepared_query: Optional[PreparedQuery] = self._bind_from_query(
+            builder, context)
+        if prepared_query is not None:
+            return prepared_query
 
         structure: Tuple[str, List[dict]] = context.init_structure("insert")
         table_name: str = structure[0]
@@ -172,11 +181,10 @@ class UpdateBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
 
-        prepared_sql: Optional[Union[str, DynamicQuery]] = builder.build(
-            query=context.query, sql_path=context.sql_path,
-            arg_keys=context.arg_keys())
-        if prepared_sql is not None:
-            return PreparedQuery(prepared_sql, context.bind_params)
+        prepared_query: Optional[PreparedQuery] = self._bind_from_query(
+            builder, context)
+        if prepared_query is not None:
+            return prepared_query
 
         structure: Tuple[str, List[dict]] = context.init_structure("update")
         table_name: str = structure[0]
@@ -203,11 +211,10 @@ class DeleteBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
 
-        prepared_sql: Optional[Union[str, DynamicQuery]] = builder.build(
-            query=context.query, sql_path=context.sql_path,
-            arg_keys=context.arg_keys())
-        if prepared_sql is not None:
-            return PreparedQuery(prepared_sql, context.bind_params)
+        prepared_query: Optional[PreparedQuery] = self._bind_from_query(
+            builder, context)
+        if prepared_query is not None:
+            return prepared_query
 
         structure: Tuple[str, List[dict]] = context.init_structure("delete")
         table_name: str = structure[0]
@@ -224,3 +231,16 @@ class DeleteBindBuilder(QueryBindBuilder):
             )
 
         return PreparedQuery(prepared_sql, bind_parameters)
+
+
+@description()
+class ExecuteBindBuilder(QueryBindBuilder):
+    def bind(self, builder: SqlBuilder, context: QueryContext
+             ) -> PreparedQuery:
+
+        prepared_query: Optional[PreparedQuery] = self._bind_from_query(
+            builder, context)
+        if prepared_query is None:
+            raise exceptions.NoQueryArgumentException()
+
+        return prepared_query
