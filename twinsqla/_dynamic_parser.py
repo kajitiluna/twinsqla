@@ -304,7 +304,8 @@ def _parse_query(
 
 def _do_build_query(
     parsed_queries: List[TwinQuery], func_arguments: str,
-    current_params: Optional[Dict[str, callable]] = None
+    current_params: Optional[Dict[str, callable]] = None,
+    current_condition: Optional[str] = None
 ) -> Tuple[str, Dict[str, callable]]:
 
     pydynamic_params: Dict[str, callable] = current_params \
@@ -317,17 +318,22 @@ def _do_build_query(
             continue
 
         if isinstance(parsed_query, PythonExprQuery):
-            # python式による評価結果をbind_paramに割り当てる
+            # append python evaluation to bind_params
             dynamic_param: str = f"pydynamic_param{len(pydynamic_params)}"
             dynamic_queries.append(f'":{dynamic_param}"')
+            param_condition: str = f" if ({current_condition}) else None)" \
+                if current_condition else ")"
+
             pydynamic_params[dynamic_param] = eval(
-                f"lambda {func_arguments}:({parsed_query.python_expr})"
+                f"lambda {func_arguments}:(({parsed_query.python_expr})"
+                f"{param_condition})"
             )
             continue
 
         if isinstance(parsed_query, AlternativeQuery):
             dynamic_sub_query, updated_params = _do_build_for_alternative(
-                parsed_query.alternatives, func_arguments, pydynamic_params)
+                parsed_query.alternatives, func_arguments, pydynamic_params,
+                current_condition)
             dynamic_queries.append(dynamic_sub_query)
             pydynamic_params = updated_params
             continue
@@ -343,19 +349,26 @@ def _do_build_query(
 
 def _do_build_for_alternative(
     alternatives: List[Tuple[str, List[TwinQuery]]],
-    func_arguments: str, current_params: Dict[str, callable]
+    func_arguments: str, current_params: Dict[str, callable],
+    current_condition: Optional[str] = None
 ) -> Tuple[str, Dict[str, callable]]:
 
     if len(alternatives) == 0:
         return ("''", current_params)
 
+    condition, sub_queries = alternatives[0]
+
+    else_condition: str = \
+        f"({current_condition} and (not bool({condition})))" \
+        if current_condition else f"(not bool({condition}))"
     later_sub_query, pydynamic_params = _do_build_for_alternative(
-        alternatives[1:], func_arguments, current_params
+        alternatives[1:], func_arguments, current_params, else_condition
     )
 
-    condition, sub_queries = alternatives[0]
+    sub_condition: str = f"bool({condition}) and {current_condition}" \
+        if current_condition else f"bool({condition})"
     sub_expr, updated_params = _do_build_query(
-        sub_queries, func_arguments, pydynamic_params)
+        sub_queries, func_arguments, pydynamic_params, sub_condition)
 
     sub_query = (
         "("
