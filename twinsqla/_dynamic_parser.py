@@ -1,33 +1,39 @@
-from dataclasses import dataclass
 from typing import Optional, Union, Tuple, List, Dict
 from abc import ABCMeta, abstractmethod
 
 from lark import Lark, Transformer, Tree, v_args
+
+from ._support import description
 
 
 class TwinQuery():
     pass
 
 
-@dataclass(frozen=True)
+@description("query")
 class StaticQuery(TwinQuery):
-    query: str
+    def __init__(self, query: str):
+        self.query: str = query
 
 
-@dataclass(frozen=True)
+@description("python_expr")
 class PythonExprQuery(TwinQuery):
-    python_expr: str
+    def __init__(self, python_expr: str):
+        self.python_expr: str = python_expr
 
 
-@dataclass(frozen=True)
+@description("alternatives")
 class AlternativeQuery(TwinQuery):
-    alternatives: List[Tuple[str, List[TwinQuery]]]
+    def __init__(self, alternatives: List[Tuple[str, List[TwinQuery]]]):
+        self.alternatives: List[Tuple[str, List[TwinQuery]]] = alternatives
 
 
-@dataclass(frozen=True)
+@description(("start_pos", "end_pos"))
 class QueryRange():
-    start_pos: int
-    end_pos: int
+
+    def __init__(self, start_pos: int, end_pos: int):
+        self.start_pos: int = start_pos
+        self.end_pos: int = end_pos
 
     def sort_key(self) -> Tuple[int, int]:
         return (self.start_pos, (-1) * self.end_pos)
@@ -36,17 +42,21 @@ class QueryRange():
         return text[self.start_pos:self.end_pos]
 
 
-@dataclass(frozen=True)
+@description("bind_param")
 class BindParameter():
-    bind_param: str
+
+    def __init__(self, bind_param: str):
+        self.bind_param: str = bind_param
 
     def build_param(self, query: str) -> StaticQuery:
         return StaticQuery(self.bind_param)
 
 
-@dataclass(frozen=True)
+@description("python_expr_range")
 class PythonEvaluatedValue():
-    python_expr_range: QueryRange
+
+    def __init__(self, python_expr_range: QueryRange):
+        self.python_expr_range: QueryRange = python_expr_range
 
     def expr(self, text: str) -> str:
         return self.python_expr_range.extract(text)
@@ -62,29 +72,43 @@ class TwinFactor(metaclass=ABCMeta):
         pass
 
 
-@dataclass(frozen=True)
+@description(("original_range", "dynamic_factor"))
 class DynamicFactor(TwinFactor):
-    original_range: QueryRange
-    dynamic_factor: Union[BindParameter, PythonEvaluatedValue]
+
+    def __init__(self, original_range: QueryRange,
+                 dynamic_factor: Union[BindParameter, PythonEvaluatedValue]):
+
+        self.original_range: QueryRange = original_range
+        self.dynamic_factor: Union[BindParameter,
+                                   PythonEvaluatedValue] = dynamic_factor
 
     def build_query(self, query: str, dynamic_params: list) -> TwinQuery:
         return self.dynamic_factor.build_param(query)
 
 
-@dataclass(frozen=True)
+@description(("python_condition", "query_expr_tree"))
 class ConditionalExpression():
-    python_condition: PythonEvaluatedValue
-    query_expr_tree: Tree
+
+    def __init__(self, python_condition: PythonEvaluatedValue,
+                 query_expr_tree: Tree):
+
+        self.python_condition: PythonEvaluatedValue = python_condition
+        self.query_expr_tree: Tree = query_expr_tree
 
     def condition_expr(self, query: str) -> str:
         return self.python_condition.expr(query)
 
 
-@dataclass(frozen=True)
+@description(("original_range", "conditional_exprs", "else_expr"))
 class AlternativeFactor(TwinFactor):
-    original_range: QueryRange
-    conditional_exprs: List[ConditionalExpression]
-    else_expr: Optional[Tree]
+
+    def __init__(self, original_range: QueryRange,
+                 conditional_exprs: List[ConditionalExpression],
+                 else_expr: Optional[Tree]):
+
+        self.original_range: QueryRange = original_range
+        self.conditional_exprs: List[ConditionalExpression] = conditional_exprs
+        self.else_expr: Optional[Tree] = else_expr
 
     def build_query(self, query: str, dynamic_params: list) -> TwinQuery:
         alternatives: List[Tuple[str, List[TwinQuery]]] = []

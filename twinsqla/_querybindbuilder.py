@@ -1,5 +1,4 @@
 from typing import Any, Optional, Union, List, Tuple
-from dataclasses import dataclass
 from abc import ABCMeta, abstractmethod
 
 import sqlalchemy
@@ -59,17 +58,24 @@ class PreparedQuery:
         return self.parameters
 
 
-@dataclass(frozen=True)
+@description(("query", "sql_path", "table_name", "bind_params",
+              "triggered_function", "function_args", "condition_columns"))
 class QueryContext():
-    query: Optional[str]
-    sql_path: Optional[str]
-    table_name: Optional[str]
-    bind_params: dict
-    condition_columns: Tuple[str, ...]
 
-    triggered_function: callable
-    function_args: tuple
     function_kwargs: dict
+
+    def __init__(self, query: Optional[str], sql_path: Optional[str],
+                 table_name: Optional[str], bind_params: dict,
+                 triggered_function: callable, function_args: tuple,
+                 condition_columns: Tuple[str, ...]):
+
+        self.query: Optional[str] = query
+        self.sql_path: Optional[str] = sql_path
+        self.table_name: Optional[str] = table_name
+        self.bind_params: dict = bind_params
+        self.triggered_function: callable = triggered_function
+        self.function_args: tuple = function_args
+        self.condition_columns: Tuple[str, ...] = condition_columns
 
     def init_structure(self, operation: str) -> Tuple[str, List[dict]]:
         entities: List[Any] = self.find_entities()

@@ -1,9 +1,10 @@
 # TWinSQLA
 
-TWinSQLA is a light framework for mapping SQL statements to python functions or methods.
+TWinSQLA is a light framework for mapping SQL statements to python functions and methods.
 
 ## Features
-- Available in Python 3.7+
+- Available in Python 3.6+
+    - We recommends Python 3.7+ for using `@dataclasses` decorator.
 - This framework concept is avoid ORM features!
     Coding with almost-raw SQL query (with prepared parameters) simply.
     - Let's consider that you coding with ORM features in accessing databases.
@@ -89,9 +90,9 @@ TWinSQLA is a light framework for mapping SQL statements to python functions or 
     ```sql
     SELECT * FROM table_name
     WHERE
-        /*%if _bool_expression_ */
+        /*%if _python_bool_expression_ */
         some_column1 = 1
-        /*%elseif _bool_expression_ */
+        /*%elif _python_bool_expression_ */
         OR some_column2 = 2
         /*%else*/
         OR some_column3 = 3
@@ -100,10 +101,10 @@ TWinSQLA is a light framework for mapping SQL statements to python functions or 
 
     definition
     ```sql
-    /*%if _bool_expression_ */ query [/*%elseif _bool_expression_ */ query [...]] [/*%else*/ query] /*%end*/
+    /*%if _bool_expression_ */ expression [ /*%elif _bool_expression_ */ expression [...] ] [ /*%else*/ expression ] /*%end*/
     ```
 
-- FOR block
+- FOR block (Not yet implemented)
 
     sample
     ```sql
