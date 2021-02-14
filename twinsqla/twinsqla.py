@@ -30,6 +30,23 @@ from . import exceptions
      ("type_builder", "_type_builder"))
 )
 class TWinSQLA:
+    """
+    TWinSQLA is a light framework for mapping SQL statements to python
+    functions or methods.
+    TWinSQLA instance handles SQL statements and transactions.
+
+
+    Args:
+        engine (sqlalchemy.engine.base.Engine): SQLAlchemy engine instance.
+        available_dynamic_query (bool, optional):
+            If True, then two-ways SQL is available.
+            If False, sql statements are not converted in executing
+            but executed as it is specified. Defaults to True.
+        sql_file_root (Optional[Union[Path, str]], optional):
+            Specify the root directory of sql files. Defaults to None.
+        cache_size (Optional[int], optional):
+            Cache size of loaded query function. Defaults to 128.
+    """
 
     def __init__(self, engine: sqlalchemy.engine.base.Engine, *,
                  available_dynamic_query: bool = True,
