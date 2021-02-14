@@ -321,12 +321,12 @@ def _do_build_query(
             # append python evaluation to bind_params
             dynamic_param: str = f"pydynamic_param{len(pydynamic_params)}"
             dynamic_queries.append(f'":{dynamic_param}"')
-            param_condition: str = f" if ({current_condition}) else None)" \
-                if current_condition else ")"
+            param_condition: str = f" if ({current_condition}) else None" \
+                if current_condition else ""
 
             pydynamic_params[dynamic_param] = eval(
-                f"lambda {func_arguments}:(({parsed_query.python_expr})"
-                f"{param_condition})"
+                f"lambda {func_arguments}:"
+                f"(({parsed_query.python_expr}){param_condition})"
             )
             continue
 

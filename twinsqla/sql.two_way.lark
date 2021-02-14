@@ -26,7 +26,7 @@ union_op: "UNION"i ( "ALL"i | "DISTINCT"i )
         | "EXCEPT"i "DISTINCT"i
 
 order: "ORDER"i "BY"i order_query ( "," order_query )*
-order_query: expression ( "ASC"i | "DESC"i )?
+order_query: expression ( ("ASC"i | "DESC"i ) ( "NULLS"i ( "LAST"i | "FIRST"i ) )? )?
 
 limit: "LIMIT"i INT ( "OFFSET"i INT )?
 
@@ -50,6 +50,7 @@ from: "FROM"i query_table ( "," query_table )*
 query_table: table ( join_table )*
 
 table: table_name ( ( "AS"i )? alias )?
+     | "(" query_select ")" ( ( "AS"i )? alias )?
      | "UNNEST"i "(" array_expression ")" ( ( "AS"i )? alias )?
 
 join_table: join_type table "ON"i bool_expression
@@ -79,7 +80,7 @@ insert_columns: "(" column_name ( "," column_name )* ")"
 insert_inputs: "VALUES"i insert_values
              | query_select
 
-insert_values: insert_value ( ", " insert_value )*
+insert_values: insert_value ( "," insert_value )*
 insert_value: "(" value_expression ( "," value_expression )* ")"
 
 value_expression: expression // TODO strict definition
