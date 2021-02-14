@@ -16,7 +16,7 @@ from sqlalchemy.engine.result import ResultProxy, RowProxy
 
 from ._sqlbuilder import SqlBuilder
 from ._querybindbuilder import (
-    QueryBindBuilder, SelectBindBuilder,
+    QueryBindBuilder, SelectBindBuilder, ExecuteBindBuilder,
     InsertBindBuilder, UpdateBindBuilder, DeleteBindBuilder,
     QueryContext, PreparedQuery
 )
@@ -30,14 +30,33 @@ from . import exceptions
      ("type_builder", "_type_builder"))
 )
 class TWinSQLA:
+    """
+    TWinSQLA is a light framework for mapping SQL statements to python
+    functions or methods.
+    TWinSQLA instance handles SQL statements and transactions.
+
+
+    Args:
+        engine (sqlalchemy.engine.base.Engine): SQLAlchemy engine instance.
+        available_dynamic_query (bool, optional):
+            If True, then two-ways SQL is available.
+            If False, sql statements are not converted in executing
+            but executed as it is specified. Defaults to True.
+        sql_file_root (Optional[Union[Path, str]], optional):
+            Specify the root directory of sql files. Defaults to None.
+        cache_size (Optional[int], optional):
+            Cache size of loaded query function. Defaults to 128.
+    """
 
     def __init__(self, engine: sqlalchemy.engine.base.Engine, *,
+                 available_dynamic_query: bool = True,
                  sql_file_root: Optional[Union[Path, str]] = None,
                  cache_size: Optional[int] = 128):
 
         self._engine: Engine = engine
         self._sessionmaker: sessionmaker = sessionmaker(bind=engine)
         self._sql_builder: SqlBuilder = SqlBuilder(
+            available_dynamic_query=available_dynamic_query,
             sql_file_root=sql_file_root, cache_size=cache_size)
         self._type_builder: ResultTypeBuilder = ResultTypeBuilder(cache_size)
         self._locals: threading.local = threading.local()
@@ -245,6 +264,35 @@ class TWinSQLA:
 
         return _do_delete(query, sql_path, table_name, condition_columns,
                           result_type, iteratable, sqla=self)
+
+    def execute(self, query: Optional[str] = None, *,
+                sql_path: Optional[str] = None,
+                result_type: Type[Any] = Tuple[OrderedDict, ...],
+                iteratable: bool = False):
+        """
+        Function decorator of any operation.
+        Only one argument `query` or `sql_path` must be specified.
+
+        In called decorated method, the processing implemented by the method
+        is not executed, but arguments of method are used for bind parameters.
+
+        Args:
+            query (Optional[str], optional):
+                any query (available TwoWay SQL). Defaults to None.
+            sql_path (Optional[str], optional):
+                file path with sql (available TwoWay SQL). Defaults to None.
+            result_type (Type[Any], optional):
+                return type. Defaults to Tuple[OrderedDict, ...].
+            iteratable (bool, optional):
+                When you want to fetching iterataly result,
+                then True specified and returned ResultIterator object.
+                Defaults to False.
+
+        Returns:
+            Callable: Function decorator for select query
+        """
+
+        return _do_execute(query, sql_path, result_type, iteratable, sqla=self)
 
     def _execute_query(self, prepared: PreparedQuery) -> ResultProxy:
         query: sqlalchemy.sql.text = prepared.statement()
@@ -504,6 +552,44 @@ def _do_delete(query: Optional[str], sql_path: Optional[str],
     )
 
 
+def execute(query: Optional[str] = None, *, sql_path: Optional[str] = None,
+            result_type: Type[Any] = Tuple[OrderedDict, ...],
+            iteratable: bool = False):
+    """
+    Function decorator of any operation.
+    Only one argument `query` or `sql_path` must be specified.
+
+    In called decorated method, the processing implemented by the method
+    is not executed, but arguments of method are used for bind parameters.
+
+    Args:
+        query (Optional[str], optional):
+            any query (available TwoWay SQL). Defaults to None.
+        sql_path (Optional[str], optional):
+            file path with sql (available TwoWay SQL). Defaults to None.
+        result_type (Type[Any], optional):
+            return type. Defaults to Tuple[OrderedDict, ...].
+        iteratable (bool, optional):
+            When you want to fetching iterataly result, then True specified
+            and returned ResultIterator object. Defaults to False.
+
+    Returns:
+        Callable: Function decorator
+    """
+
+    return _do_execute(query, sql_path, result_type, iteratable)
+
+
+def _do_execute(query: Optional[str], sql_path: Optional[str],
+                result_type: Type[Any], iteratable: bool,
+                sqla: Optional[TWinSQLA] = None):
+
+    return QueryType.EXECUTE.query_decorator(
+        sqla=sqla, query=query, sql_path=sql_path,
+        result_type=result_type, iteratable=iteratable
+    )
+
+
 @description("bind_builder")
 class QueryExecutor():
     def __init__(self, binder: QueryBindBuilder):
@@ -565,6 +651,7 @@ class QueryType(Enum):
     INSERT = QueryExecutor(InsertBindBuilder())
     UPDATE = QueryExecutor(UpdateBindBuilder())
     DELETE = QueryExecutor(DeleteBindBuilder())
+    EXECUTE = QueryExecutor(ExecuteBindBuilder())
 
     def query_decorator(self, *args, **kwargs):
         return self.value.query_decorator(*args, **kwargs)

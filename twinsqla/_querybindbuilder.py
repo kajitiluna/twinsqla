@@ -1,37 +1,81 @@
 from typing import Any, Optional, Union, List, Tuple
-from dataclasses import dataclass
 from abc import ABCMeta, abstractmethod
 
 import sqlalchemy
 
 from ._support import description
+from ._dynamic_parser import DynamicQuery
 from ._sqlbuilder import SqlBuilder
 from . import exceptions
 
 
 class PreparedQuery:
-    def __init__(self, prepared_sql: str, parameters: Union[dict, List[dict]]):
-        self.prepared_sql: str = prepared_sql
-        self.parameters: dict = parameters
+
+    def __init__(self, prepared_sql: Union[str, DynamicQuery],
+                 parameters: Union[dict, List[dict]]):
+
+        if (isinstance(parameters, list)
+                and isinstance(prepared_sql, DynamicQuery)):
+            raise ValueError("Unexpected arguments pair.")
+
+        self.prepared_sql: str = self._init_prepared_sql(
+            prepared_sql, parameters)
+        self.parameters: Union[dict, List[dict]] = self._init_bind_param(
+            prepared_sql, parameters)
+
+    @classmethod
+    def _init_prepared_sql(cls, prepared: Union[str, DynamicQuery],
+                           parameters: Union[dict, List[dict]]) -> str:
+
+        if isinstance(prepared, str):
+            return prepared
+
+        # When prepared object is not instance of string,
+        # then parameters object must be instance of dict not list.
+        return prepared.query_func(**parameters)
+
+    @classmethod
+    def _init_bind_param(cls, prepared: Union[str, DynamicQuery],
+                         parameters: Union[dict, List[dict]]
+                         ) -> Union[dict, List[dict]]:
+
+        if isinstance(prepared, str):
+            return parameters
+
+        # When prepared object is not instance of string,
+        # then parameters object must be instance of dict not list.
+        dynamic_params: dict = {
+            key: param(**parameters)
+            for key, param in prepared.pydynamic_params.items()
+        }
+
+        return dict(parameters, **dynamic_params)
 
     def statement(self) -> sqlalchemy.sql.text:
         return sqlalchemy.sql.text(self.prepared_sql)
 
     def bind_params(self) -> Union[dict, List[dict]]:
-        return self.parameters.copy()
+        return self.parameters
 
 
-@dataclass(frozen=True)
+@description(("query", "sql_path", "table_name", "bind_params",
+              "triggered_function", "function_args", "condition_columns"))
 class QueryContext():
-    query: Optional[str]
-    sql_path: Optional[str]
-    table_name: Optional[str]
-    bind_params: dict
-    condition_columns: Tuple[str, ...]
 
-    triggered_function: callable
-    function_args: tuple
     function_kwargs: dict
+
+    def __init__(self, query: Optional[str], sql_path: Optional[str],
+                 table_name: Optional[str], bind_params: dict,
+                 triggered_function: callable, function_args: tuple,
+                 condition_columns: Tuple[str, ...]):
+
+        self.query: Optional[str] = query
+        self.sql_path: Optional[str] = sql_path
+        self.table_name: Optional[str] = table_name
+        self.bind_params: dict = bind_params
+        self.triggered_function: callable = triggered_function
+        self.function_args: tuple = function_args
+        self.condition_columns: Tuple[str, ...] = condition_columns
 
     def init_structure(self, operation: str) -> Tuple[str, List[dict]]:
         entities: List[Any] = self.find_entities()
@@ -72,13 +116,27 @@ class QueryContext():
 
         return target_table_name
 
+    def arg_keys(self) -> Tuple[str]:
+        return tuple(self.bind_params.keys())
+
 
 @description()
 class QueryBindBuilder(metaclass=ABCMeta):
+
     @abstractmethod
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
         pass
+
+    def _bind_from_query(self, builder: SqlBuilder, context: QueryContext
+                         ) -> Optional[PreparedQuery]:
+
+        prepared_sql: Optional[Union[str, DynamicQuery]] = builder.build(
+            query=context.query, sql_path=context.sql_path,
+            arg_keys=context.arg_keys())
+
+        return PreparedQuery(prepared_sql, context.bind_params) \
+            if prepared_sql is not None else None
 
 
 @description()
@@ -86,12 +144,12 @@ class SelectBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
 
-        prepared_sql: Optional[str] = builder.build(
-            query=context.query, sql_path=context.sql_path)
-        if prepared_sql is None:
+        prepared_query: Optional[PreparedQuery] = self._bind_from_query(
+            builder, context)
+        if prepared_query is None:
             raise exceptions.NoQueryArgumentException()
 
-        return PreparedQuery(prepared_sql, context.bind_params)
+        return prepared_query
 
 
 @description()
@@ -99,10 +157,10 @@ class InsertBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
 
-        prepared_sql: Optional[str] = builder.build(
-            query=context.query, sql_path=context.sql_path)
-        if prepared_sql is not None:
-            return PreparedQuery(prepared_sql, context.bind_params)
+        prepared_query: Optional[PreparedQuery] = self._bind_from_query(
+            builder, context)
+        if prepared_query is not None:
+            return prepared_query
 
         structure: Tuple[str, List[dict]] = context.init_structure("insert")
         table_name: str = structure[0]
@@ -123,10 +181,10 @@ class UpdateBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
 
-        prepared_sql: Optional[str] = builder.build(
-            query=context.query, sql_path=context.sql_path)
-        if prepared_sql is not None:
-            return PreparedQuery(prepared_sql, context.bind_params)
+        prepared_query: Optional[PreparedQuery] = self._bind_from_query(
+            builder, context)
+        if prepared_query is not None:
+            return prepared_query
 
         structure: Tuple[str, List[dict]] = context.init_structure("update")
         table_name: str = structure[0]
@@ -153,10 +211,10 @@ class DeleteBindBuilder(QueryBindBuilder):
     def bind(self, builder: SqlBuilder, context: QueryContext
              ) -> PreparedQuery:
 
-        prepared_sql: Optional[str] = builder.build(
-            query=context.query, sql_path=context.sql_path)
-        if prepared_sql is not None:
-            return PreparedQuery(prepared_sql, context.bind_params)
+        prepared_query: Optional[PreparedQuery] = self._bind_from_query(
+            builder, context)
+        if prepared_query is not None:
+            return prepared_query
 
         structure: Tuple[str, List[dict]] = context.init_structure("delete")
         table_name: str = structure[0]
@@ -173,3 +231,16 @@ class DeleteBindBuilder(QueryBindBuilder):
             )
 
         return PreparedQuery(prepared_sql, bind_parameters)
+
+
+@description()
+class ExecuteBindBuilder(QueryBindBuilder):
+    def bind(self, builder: SqlBuilder, context: QueryContext
+             ) -> PreparedQuery:
+
+        prepared_query: Optional[PreparedQuery] = self._bind_from_query(
+            builder, context)
+        if prepared_query is None:
+            raise exceptions.NoQueryArgumentException()
+
+        return prepared_query

@@ -1,0 +1,296 @@
+query_statement: query_expr
+
+query_expr: query_select
+          | query_insert
+          | query_update
+          | query_delete
+          | query_truncate
+          | query_merge
+
+////////////////////////////////////////////////////////////////
+// SELECT
+////////////////////////////////////////////////////////////////
+
+query_select: with? select_block order? limit?
+
+with: "WITH"i with_query ( "," with_query )*
+with_query: with_query_name "AS"i "(" query_select ")"
+with_query_name: NAME
+
+select_block: select
+            | "(" query_select ")"
+            | query_select union_op query_select
+
+union_op: "UNION"i ( "ALL"i | "DISTINCT"i )
+        | "INTERSECT"i "DISTINCT"i
+        | "EXCEPT"i "DISTINCT"i
+
+order: "ORDER"i "BY"i order_query ( "," order_query )*
+order_query: expression ( ("ASC"i | "DESC"i ) ( "NULLS"i ( "LAST"i | "FIRST"i ) )? )?
+
+limit: "LIMIT"i INT ( "OFFSET"i INT )?
+
+
+// SELECT BLOCK
+
+select: "SELECT"i ( "DISTINCT"i )? ( full_column | select_columns ) from? where? group? having? window?
+
+full_column: "*"
+
+select_columns: select_column ( "," select_column )*
+
+select_column: expression ( ( "AS"i )? alias )?
+             | table_full_column
+
+table_full_column: table_name "." "*"
+
+
+from: "FROM"i query_table ( "," query_table )*
+
+query_table: table ( join_table )*
+
+table: table_name ( ( "AS"i )? alias )?
+     | "(" query_select ")" ( ( "AS"i )? alias )?
+     | "UNNEST"i "(" array_expression ")" ( ( "AS"i )? alias )?
+
+join_table: join_type table "ON"i bool_expression
+
+join_type: "INNER"i "JOIN"i                  -> inner_join
+         | "LEFT"i [ "OUTER"i ] "JOIN"i      -> left_outer_join
+         | "RIGHT"i [ "OUTER"i ] "JOIN"i     -> right_outer_join
+         | "CROSS"i "JOIN"i                  -> cross_join
+
+array_expression: column_name
+
+
+where: "WHERE"i bool_expression
+group: "GROUP"i "BY"i expression ( "," expression )*
+having: "HAVING"i bool_expression
+window: "WINDOW"i expression "AS"i expression ( "," expression )*
+
+
+////////////////////////////////////////////////////////////////
+// INSERT
+////////////////////////////////////////////////////////////////
+
+query_insert: "INSERT"i ( "INTO"i )? insert_table insert_inputs
+
+insert_table: table_name [ insert_columns ]
+insert_columns: "(" column_name ( "," column_name )* ")"
+insert_inputs: "VALUES"i insert_values
+             | query_select
+
+insert_values: insert_value ( "," insert_value )*
+insert_value: "(" value_expression ( "," value_expression )* ")"
+
+value_expression: expression // TODO strict definition
+
+
+////////////////////////////////////////////////////////////////
+// UPDATE
+////////////////////////////////////////////////////////////////
+
+query_update: "UPDATE"i target_table "SET"i update_items [ from_clause ] [ where ]
+
+target_table: table_name ( alias )?
+
+update_items: update_item ( "," update_item )*
+update_item: column_term "=" expression
+
+from_clause: "FROM"i target_table
+
+
+////////////////////////////////////////////////////////////////
+// DELETE, TRUNCATE
+////////////////////////////////////////////////////////////////
+
+query_delete: "DELETE"i ( "FROM"i )? target_table [ where ]
+query_truncate: "TRUNCATE"i "TABLE"i table_name
+
+
+////////////////////////////////////////////////////////////////
+// MERGE
+////////////////////////////////////////////////////////////////
+
+query_merge: "MERGE"i ( "INTO"i )? merge_table "USING"i merge_source "ON"i bool_expression merge_clause+
+
+merge_table: table_name ( ( "AS"i )? alias )?
+merge_source: merge_table
+            | "(" query_select ")" ( ( "AS"i )? alias )?
+
+merge_clause: matched_merge_clause
+            | not_matched_by_target_clause
+            | not_matched_by_source_clause
+
+matched_merge_clause: WHEN_MATCHED [ "AND"i bool_expression ] "THEN"i merge_modify_clause
+not_matched_by_target_clause: WHEN_NOT_MATCHED_TARGET [ "AND"i bool_expression ] "THEN"i merge_insert_clause
+not_matched_by_source_clause: WHEN_NOT_MATCHED_SOURCE [ "AND"i bool_expression ] "THEN"i merge_modify_clause
+
+WHEN_MATCHED: "WHEN"i "MATCHED"i
+WHEN_NOT_MATCHED_TARGET: WHEN_NOT_MATCHED ( "BY"i "TARGET"i )?
+WHEN_NOT_MATCHED_SOURCE: WHEN_NOT_MATCHED "BY"i "SOURCE"i
+WHEN_NOT_MATCHED: "WHEN"i "NOT"i "MATCHED"i
+
+merge_modify_clause: merge_update_clause
+                   | merge_delete_clause
+
+merge_insert_clause: "INSERT"i [ insert_columns ] ( ("VALUES"i insert_values) | "ROW"i )
+merge_update_clause: "UPDATE"i "SET"i update_items
+merge_delete_clause: "DELETE"i
+
+
+////////////////////////////////////////////////////////////////
+// EXPRESSIONS
+////////////////////////////////////////////////////////////////
+
+// expression
+
+expression: sql_expression
+          | bool_expression
+          | numeric_expression
+
+sql_expression: column_term
+              | text
+              | bind_param
+              | twoway_bind_text
+              | case_expr
+              | case
+              | function
+
+column_term: column_name
+           | table_name "." column_name
+
+text: /'([^\n']|'{2})*'/
+twoway_bind_text: twoway_bind_param text
+
+case_expr: "CASE"i expression case_when+ [ case_else ] "END"i
+case_when: "WHEN"i expression "THEN"i expression
+case_else: "ELSE"i expression
+
+case: "CASE"i case_bool+ [ case_else ] "END"i
+case_bool: "WHEN"i bool_expression "THEN"i expression
+
+function: function_name "(" [ function_arg ( "," function_arg )* ] ")"
+function_arg: ( NAME )* expression ( NAME )*
+
+
+// bool_expression
+
+bool_expression: ( bool_expression "OR"i )* bool_and_term
+bool_and_term: ( bool_and_term "AND"i )* bool_preterm
+bool_preterm: [ "NOT"i ] bool_match_term
+
+bool_match_term: bool_term bool_matched_op?
+               | bool_term ( equal_op | not_equal_op ) bool_term
+               | exists_op
+               | sql_expression ( in_op | not_in_op | between | like_op | not_like_op )
+               | numeric_expression compare_op numeric_expression
+
+bool_term: TRUE
+         | FALSE
+         | NULL
+         | bind_param
+         | twoway_bind_bool
+         | dynamic_if_bool
+         | "(" bool_expression ")"
+         | sql_expression
+
+twoway_bind_bool: twoway_bind_param ( TRUE | FALSE | NULL )
+
+bool_matched_op: "IS"i "TRUE"i          -> is_true
+               | "IS"i "NOT"i "TRUE"i   -> is_not_true
+               | "IS"i "FALSE"i         -> is_false
+               | "IS"i "NOT"i "FALSE"i  -> is_not_false
+               | "IS"i "NULL"i          -> is_null
+               | "IS"i "NOT"i "NULL"i   -> is_not_null
+
+not_in_op: "NOT"i in_op
+in_op: "IN"i "(" query_expr ")"
+     | "IN"i "(" [ expression ( "," expression )* ] ")"
+between: "BETWEET"i sql_expression "AND"i sql_expression
+like_op: "LIKE"i sql_expression
+not_like_op: "NOT"i "LIKE"i sql_expression
+
+exists_op: "EXISTS"i "(" query_select ")"
+
+compare_op: equal_op
+          | not_equal_op
+          | "<"          -> less_than_op
+          | ">"          -> more_than_op
+          | "<="         -> less_equql_than_op
+          | ">="         -> more_equql_than_op
+
+equal_op: "="
+not_equal_op: "!=" | "<>"
+
+
+// numeric expression
+
+numeric_expression: ( numeric_expression "|" )* numeric_bit_xor
+numeric_bit_xor: ( numeric_bit_xor "^" )* numeric_bit_and
+numeric_bit_and: ( numeric_bit_and "&" )* numeric_bit_shift
+numeric_bit_shift: ( numeric_bit_shift ( "<<" | ">>" ) )* numeric_term
+
+numeric_term: ( numeric_term ( "+" | "-" ) )* numeric_factor
+numeric_factor: ( numeric_factor ( "*" | "/" | "||" ) )* numeric_presymbol
+numeric_presymbol: [ "~" ] numeric_symbol
+
+numeric_symbol: SIGNED_NUMBER
+              | bind_param
+              | twoway_bind_numeric
+              | "(" numeric_expression ")"
+              | sql_expression
+
+twoway_bind_numeric: twoway_bind_param SIGNED_NUMBER
+
+
+////////////////////////////////////////////////////////////////
+// DYNAMIC EXPRESSION
+////////////////////////////////////////////////////////////////
+
+dynamic_if_bool: dynamic_if bool_expression [ dynamic_elseif_phases ] [ dynamic_else_phase ] "/*%end*/"i
+
+dynamic_if: "/*%if "i python_expression "*/"
+dynamic_elseif_phases: dynamic_elseif_phase+
+dynamic_elseif_phase: dynamic_elseif DUMMY_OP bool_expression
+dynamic_elseif: ( "/*%elseif "i | "/*%elif "i ) python_expression "*/"
+dynamic_else_phase: "/*%else*/"i DUMMY_OP bool_expression
+DUMMY_OP: "OR"i | "AND"i
+
+
+////////////////////////////////////////////////////////////////
+// FACTORS
+////////////////////////////////////////////////////////////////
+
+table_name: NAME
+column_name: NAME
+function_name: NAME ( "." NAME )?
+alias: NAME
+
+bind_param: BIND_PARAM_NAME
+BIND_PARAM_NAME: /:[a-zA-Z_]\w*/
+
+twoway_bind_param: "/*" bind_param "*/"
+                 | "/*" dynamic_value "*/"
+
+dynamic_value: python_expression
+
+NAME: /[a-zA-Z_]\w*/
+TRUE: "TRUE"i
+FALSE: "FALSE"i
+NULL: "NULL"i
+
+SQL_MULTILINE_COMMENT: "/**" /.*?/s "*/"
+
+%import .python_grammer.expression -> python_expression
+
+%import common.SQL_COMMENT
+%import common.INT
+%import common.NUMBER
+%import common.SIGNED_NUMBER
+%import common.INT
+%import common.WS
+
+%ignore SQL_MULTILINE_COMMENT
+%ignore SQL_COMMENT
+%ignore WS
