@@ -238,13 +238,13 @@ class DynamicParserTest(unittest.TestCase):
             WHERE some_column1 = 'target' AND
                 /*%if value1 > 0 */
                     some_colum2 > 0 AND
-                    /*%if value2 = 'aaa' */
+                    /*%if value2 == 'aaa' */
                         some_column3 = /* value1 */0
                     /*%else*/
                         OR some_column3 > 0
                     /*%end*/
-                /*%elseif value2 ='aaa' */
-                    some_column3 = 0
+                /*%elseif value2 == 'aaa' */
+                    AND some_column3 = 0
                 /*%end*/
         """
 
@@ -300,9 +300,26 @@ class DynamicParserTest(unittest.TestCase):
                 "expected_values": {
                     "pydynamic_param0": None
                 }
-            },
-
+            }
         ]
+
+        result: DynamicQuery = self.parser.parse(
+            test_query, tuple(["value1", "value2"]))
+
+        for test_case in test_cases:
+            with self.subTest("dynamic_if_tests",
+                              test_input=test_case["input_values"]):
+
+                input_values: dict = test_case["input_values"]
+                expected_query: str = test_case["expected_query"].strip()
+                expected_values: dict = test_case["expected_values"]
+
+                self.assertEqual(result.query_func(
+                    **input_values), expected_query)
+                self.assertEqual(
+                    result.pydynamic_params["pydynamic_param0"](
+                        **input_values),
+                    expected_values["pydynamic_param0"])
 
 
 if __name__ == "__main__":
