@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "twinsqla"
+version = "0.0.1"
+description = "TWinSQLA is a light framework for mapping SQL statements to python functions and methods."
+authors = ["Yoshiki Kajihara"]
+license = "Apache-2.0 License"
+
+[tool.poetry.dependencies]
+python = "^3.6"
+sqlalchemy = "^1.3"
+lark-parser = "^0.11.1"
+
+[tool.poetry.dev-dependencies]
+autopep8 = "^1.5.5"
+psycopg2-binary = "^2.8.6"
+docker = "^4.4.1"
+mysqlclient = "^2.0.3"
+flake8 = "^3.8.4"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
