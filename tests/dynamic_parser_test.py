@@ -230,6 +230,84 @@ class DynamicParserTest(unittest.TestCase):
                         **input_values),
                     expected_values["pydynamic_param0"])
 
+    def test_select_dynamic_if_empty1(self):
+        test_query: str = r"""
+            SELECT
+                some_column
+            FROM some_table
+            WHERE other_value = 'target' AND
+                /*%if some_value > 0 */
+                    some_column > /* some_value */0
+                /*%end*/
+        """
+
+        test_case = {
+            "input_values": {
+                "some_value": -1,
+            },
+            "expected_query": r"""
+            SELECT
+                some_column
+            FROM some_table
+            WHERE other_value = 'target' AND
+                FALSE
+        """,
+            "expected_values": {
+                "pydynamic_param0": None
+            }
+        }
+
+        result: DynamicQuery = self.parser.parse(
+            test_query, tuple(["some_value"]))
+
+        input_values: dict = test_case["input_values"]
+        expected_query: str = test_case["expected_query"].strip()
+        expected_values: dict = test_case["expected_values"]
+
+        self.assertEqual(result.query_func(**input_values), expected_query)
+        self.assertEqual(
+            result.pydynamic_params["pydynamic_param0"](**input_values),
+            expected_values["pydynamic_param0"])
+
+    def test_select_dynamic_if_empty2(self):
+        test_query: str = r"""
+            SELECT
+                some_column
+            FROM some_table
+            WHERE
+                /*%if some_value > 0 */
+                    some_column > /* some_value */0
+                /*%end*/
+        """
+
+        test_case = {
+            "input_values": {
+                "some_value": -0.1,
+            },
+            "expected_query": r"""
+            SELECT
+                some_column
+            FROM some_table
+            WHERE
+                FALSE
+        """,
+            "expected_values": {
+                "pydynamic_param0": None
+            }
+        }
+
+        result: DynamicQuery = self.parser.parse(
+            test_query, tuple(["some_value"]))
+
+        input_values: dict = test_case["input_values"]
+        expected_query: str = test_case["expected_query"].strip()
+        expected_values: dict = test_case["expected_values"]
+
+        self.assertEqual(result.query_func(**input_values), expected_query)
+        self.assertEqual(
+            result.pydynamic_params["pydynamic_param0"](**input_values),
+            expected_values["pydynamic_param0"])
+
     def test_select_dynamic_if_nested(self):
         test_query: str = r"""
             SELECT

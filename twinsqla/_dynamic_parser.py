@@ -114,14 +114,14 @@ class AlternativeFactor(TwinFactor):
         alternatives: List[Tuple[str, List[TwinQuery]]] = []
 
         for conditional in self.conditional_exprs:
-            condition = conditional.condition_expr(query)
-            subqueries = _parse_query(
+            condition: str = conditional.condition_expr(query)
+            subqueries: List[TwinQuery] = _parse_query(
                 conditional.query_expr_tree, query, dynamic_params)
 
             alternatives.append((condition, subqueries))
 
         if self.else_expr is not None:
-            subqueries = _parse_query(
+            subqueries: List[TwinQuery] = _parse_query(
                 self.else_expr, query, dynamic_params)
             alternatives.append(("True", subqueries))
 
@@ -254,7 +254,8 @@ class DynamicParser():
 
         dynamic_params: List[TwinFactor] = []
         for target_data in (
-            "twoway_bind_text", "twoway_bind_bool", "twoway_bind_numeric"
+            "twoway_bind_text", "twoway_bind_bool", "twoway_bind_numeric",
+            "dynamic_if_bool"
         ):
 
             dynamic_trees: List[Tree] = root.find_data(target_data)
@@ -262,11 +263,6 @@ class DynamicParser():
                 [self.transformer.transform(dynamic_tree)
                  for dynamic_tree in dynamic_trees]
             )
-
-        dynamic_if_trees: List[Tree] = root.find_data("dynamic_if_bool")
-        dynamic_params.extend(
-            [self.transformer.transform(tree) for tree in dynamic_if_trees]
-        )
 
         dynamic_params.sort(key=lambda param: param.original_range.sort_key())
         return dynamic_params
@@ -354,7 +350,7 @@ def _do_build_for_alternative(
 ) -> Tuple[str, Dict[str, callable]]:
 
     if len(alternatives) == 0:
-        return ("''", current_params)
+        return ("'FALSE'", current_params)
 
     condition, sub_queries = alternatives[0]
 
