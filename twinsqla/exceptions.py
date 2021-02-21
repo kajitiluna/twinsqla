@@ -24,7 +24,7 @@ class InvalidStructureException(Exception):
 
 
 class InvalidTableNameException(Exception):
-    def __init__(self, table_name: str, pattern: re.Pattern):
+    def __init__(self, table_name: str, pattern):
         super().__init__(
             f"The specified table name '{table_name}' is"
             " contained invalid charactors."
