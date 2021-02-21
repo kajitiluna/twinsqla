@@ -4,7 +4,7 @@ from typing import List, Tuple, Optional
 import sqlalchemy
 from sqlalchemy.engine.base import Engine
 
-import docker
+# import docker
 
 from pathlib import Path
 import sys
@@ -40,89 +40,89 @@ class TWinSQLATest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        docker_configs: list = [
-            {
-                "name": "tiwnsqla_postgres",
-                "image": "postgres:9.6", "auto_remove": True,
-                "ports": {"5432/tcp": "5432"},
-                "volumes": {
-                    str(Path("./tests/db").resolve()): {
-                        "bind": "/docker-entrypoint-initdb.d",
-                        "mode": "ro"
-                    }
-                },
-                "environment": {
-                    "POSTGRES_USER": "db_user",
-                    "POSTGRES_PASSWORD": "db_password",
-                    "POSTGRES_DB": "test_db"
-                }
-            },
-            {
-                "name": "tiwnsqla_mysql",
-                "image": "mysql:5.7", "auto_remove": True,
-                "ports": {"3306/tcp": "3306"},
-                "volumes": {
-                    str(Path("./tests/db").resolve()): {
-                        "bind": "/docker-entrypoint-initdb.d",
-                        "mode": "ro"
-                    }
-                },
-                "environment": {
-                    "MYSQL_RANDOM_ROOT_PASSWORD": "yes",
-                    "MYSQL_USER": "db_user",
-                    "MYSQL_PASSWORD": "db_password",
-                    "MYSQL_DATABASE": "test_db"
-                }
-            }
-        ]
+        # docker_configs: list = [
+        #     {
+        #         "name": "tiwnsqla_postgres",
+        #         "image": "postgres:9.6", "auto_remove": True,
+        #         "ports": {"5432/tcp": "5432"},
+        #         "volumes": {
+        #             str(Path("./tests/db").resolve()): {
+        #                 "bind": "/docker-entrypoint-initdb.d",
+        #                 "mode": "ro"
+        #             }
+        #         },
+        #         "environment": {
+        #             "POSTGRES_USER": "db_user",
+        #             "POSTGRES_PASSWORD": "db_password",
+        #             "POSTGRES_DB": "test_db"
+        #         }
+        #     },
+        #     {
+        #         "name": "tiwnsqla_mysql",
+        #         "image": "mysql:5.7", "auto_remove": True,
+        #         "ports": {"3306/tcp": "3306"},
+        #         "volumes": {
+        #             str(Path("./tests/db").resolve()): {
+        #                 "bind": "/docker-entrypoint-initdb.d",
+        #                 "mode": "ro"
+        #             }
+        #         },
+        #         "environment": {
+        #             "MYSQL_RANDOM_ROOT_PASSWORD": "yes",
+        #             "MYSQL_USER": "db_user",
+        #             "MYSQL_PASSWORD": "db_password",
+        #             "MYSQL_DATABASE": "test_db"
+        #         }
+        #     }
+        # ]
 
         cls.db_types: Tuple[DBType, ...] = (
             DBType(
                 "postgres",
-                "postgresql://db_user:db_password@127.0.0.1:5432/test_db"
+                "postgresql://db_user:db_password@postgres:5432/test_db"
             ),
             DBType(
                 "mysql",
-                "mysql+mysqldb://db_user:db_password@127.0.0.1:3306/test_db"
+                "mysql+mysqldb://db_user:db_password@mysql:3306/test_db"
             )
         )
 
-        try:
-            docker_client: docker.DockerClient = docker.from_env()
-            print("Start docker containers.")
-            cls.containers: list = [
-                docker_client.containers.run(detach=True, **config)
-                for config in docker_configs
-            ]
-        except Exception as exc:
-            print("Failed in initializing docker containers."
-                  f" So forcely stopping this unit tests. Detail : {exc}")
-            sys.exit(1)
+        # try:
+        #     docker_client: docker.DockerClient = docker.from_env()
+        #     print("Start docker containers.")
+        #     cls.containers: list = [
+        #         docker_client.containers.run(detach=True, **config)
+        #         for config in docker_configs
+        #     ]
+        # except Exception as exc:
+        #     print("Failed in initializing docker containers."
+        #           f" So forcely stopping this unit tests. Detail : {exc}")
+        #     sys.exit(1)
 
-        import time
-        print("Waiting for docker containers starting.", end="", flush=True)
-        wait_seconds: int = 3
-        for index in range(wait_seconds + 1):
-            try:
-                for db_type in cls.db_types:
-                    db_type.engine.execute("SELECT 1")
+        # import time
+        # print("Waiting for docker containers starting.", end="", flush=True)
+        # wait_seconds: int = 3
+        # for index in range(wait_seconds + 1):
+        #     try:
+        #         for db_type in cls.db_types:
+        #             db_type.engine.execute("SELECT 1")
 
-                break
-            except Exception:
-                if index >= wait_seconds:
-                    print("\nToo many time processed in starting."
-                          " So forcely stopping this unit tests.")
-                    cls.tearDownClass()
-                    sys.exit(1)
+        #         break
+        #     except Exception:
+        #         if index >= wait_seconds:
+        #             print("\nToo many time processed in starting."
+        #                   " So forcely stopping this unit tests.")
+        #             cls.tearDownClass()
+        #             sys.exit(1)
 
-                time.sleep(1)
-                print(".", end="", flush=True)
+        #         time.sleep(1)
+        #         print(".", end="", flush=True)
 
-        print("\nCompleted starting docker containers.")
+        # print("\nCompleted starting docker containers.")
 
-    @classmethod
-    def tearDownClass(cls):
-        [container.stop() for container in cls.containers]
+    # @classmethod
+    # def tearDownClass(cls):
+    #     [container.stop() for container in cls.containers]
 
     def setUp(self):
         try:
