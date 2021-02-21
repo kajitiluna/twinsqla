@@ -1,6 +1,5 @@
 from typing import List
 from inspect import signature
-import re
 
 
 class NoQueryArgumentException(Exception):
