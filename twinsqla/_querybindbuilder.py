@@ -62,12 +62,10 @@ class PreparedQuery:
               "triggered_function", "function_args", "condition_columns"))
 class QueryContext():
 
-    function_kwargs: dict
-
-    def __init__(self, query: Optional[str], sql_path: Optional[str],
+    def __init__(self, *, query: Optional[str], sql_path: Optional[str],
                  table_name: Optional[str], bind_params: dict,
                  triggered_function: callable, function_args: tuple,
-                 condition_columns: Tuple[str, ...]):
+                 function_kwargs: dict, condition_columns: Tuple[str, ...]):
 
         self.query: Optional[str] = query
         self.sql_path: Optional[str] = sql_path
@@ -75,6 +73,7 @@ class QueryContext():
         self.bind_params: dict = bind_params
         self.triggered_function: callable = triggered_function
         self.function_args: tuple = function_args
+        self.function_kwargs: dict = function_kwargs
         self.condition_columns: Tuple[str, ...] = condition_columns
 
     def init_structure(self, operation: str) -> Tuple[str, List[dict]]:
