@@ -1,11 +1,7 @@
 version: "3"
 services:
-  python:
-    build: .
-    volumes: 
-      - ./:/app
-
-  postgres:
+  postgres_db:
+    hostname: postgres_db
     image: postgres:9.6
     ports:
       - "5432:5432"
@@ -16,7 +12,8 @@ services:
       POSTGRES_PASSWORD: "db_password"
       POSTGRES_DB: "test_db"
 
-  mysql:
+  mysql_db:
+    hostname: mysql_db
     image: mysql:5.7
     ports:
       - "3306:3306"
@@ -27,3 +24,16 @@ services:
       MYSQL_USER: "db_user"
       MYSQL_PASSWORD: "db_password"
       MYSQL_DATABASE: "test_db"
+
+  app:
+    hostname: app
+    build: .
+    volumes:
+      - ./:/app
+    links:
+      - "postgres_db"
+      - "mysql_db"
+    depends_on:
+      - "postgres_db"
+      - "mysql_db"
+    command: bash -c "sleep 12s && python tests/twinsqla_test.py"

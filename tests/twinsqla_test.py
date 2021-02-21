@@ -79,11 +79,11 @@ class TWinSQLATest(unittest.TestCase):
         cls.db_types: Tuple[DBType, ...] = (
             DBType(
                 "postgres",
-                "postgresql://db_user:db_password@postgres:5432/test_db"
+                "postgresql://db_user:db_password@postgres_db:5432/test_db"
             ),
             DBType(
                 "mysql",
-                "mysql+mysqldb://db_user:db_password@mysql:3306/test_db"
+                "mysql+mysqldb://db_user:db_password@mysql_db:3306/test_db"
             )
         )
 
