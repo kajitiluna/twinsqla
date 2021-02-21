@@ -1,6 +1,7 @@
 from typing import Callable, Type, TypeVar, Generic
-from typing import Any, Tuple, Optional, Union
+from typing import Any, Tuple, List, Optional, Union
 from collections import OrderedDict
+from collections.abc import Sequence
 from functools import lru_cache
 
 from sqlalchemy.engine.result import ResultProxy, RowProxy
@@ -40,12 +41,19 @@ class ResultType(Generic[RESULT_TYPE]):
 class ResultTypeBuilder:
     def __init__(self, cache_size: Optional[int] = None):
 
+        def _is_sequencial(result_type: Type[Any]) -> bool:
+            if result_type in (list, tuple, List, Tuple):
+                return True
+
+            if issubclass(result_type, str):
+                return False
+            if issubclass(result_type, Sequence):
+                return True
+            return False
+
         @lru_cache(maxsize=cache_size)
         def _build(result_type: Type[Any]) -> ResultType:
-            full_type: str = str(result_type)
-
-            if (full_type.startswith("typing.Tuple") is False) \
-                    and (full_type.startswith("typing.List") is False):
+            if _is_sequencial(result_type) is False:
                 return ResultType(entity_type=result_type, sequencial=False)
 
             entity_type: Type[Any] = result_type.__args__[0]
