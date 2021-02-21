@@ -35,5 +35,7 @@ services:
       - "postgres_db"
       - "mysql_db"
     command: >
-      bash -c "until mysqladmin ping -h mysql_db --user=db_user --password=db_password --silent; do sleep 2s; done  &&
-      python -u tests/twinsqla_test.py"
+      bash -c "
+      until mysqladmin ping -h mysql_db --user=db_user --password=db_password --silent; do sleep 2s; done &&
+      python -u -m unittest discover -s tests -v
+      "
