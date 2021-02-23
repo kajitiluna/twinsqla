@@ -35,7 +35,6 @@ class TWinSQLA:
     functions or methods.
     TWinSQLA instance handles SQL statements and transactions.
 
-
     Args:
         engine (sqlalchemy.engine.base.Engine): SQLAlchemy engine instance.
         available_dynamic_query (bool, optional):

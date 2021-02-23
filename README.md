@@ -7,13 +7,8 @@ TWinSQLA is a light framework for mapping SQL statements to python functions and
     - We recommends Python 3.7+ since available to use `@dataclasses.dataclass` decorator in entity classes.
 - This framework concept is avoid ORM features!
     Coding with almost-raw SQL query (with prepared parameters) simply.
-    - Let's consider that you coding with ORM features in accessing databases.
-        For example, you want to fetch records form a table.
-        First, you think SQL query for fetching records (you may be executing query for checking results!),
-        and you convert raw sql query to python's functions with ORM features.
-        And more, you will check the result of executing program with ORM features.
     - If you can use SQL query with coding simply, it make you to skipping the times of converting python coding
-        with ORM features and checking result.python coding with ORM features.
+        with ORM features and checking result.
     - TWinSQLA support you to checking only SQL query without coding with ORM features.
 - Support "two-way SQL" template.
     - "Two-way SQL" templates can be executed SQL statements with dynamic parameter written by python expression.
@@ -23,7 +18,7 @@ TWinSQLA is a light framework for mapping SQL statements to python functions and
         which is Java framework for accessing databases.
 - Since [SQLAlchemy](https://github.com/sqlalchemy/sqlalchemy) core is used for accessing databases,
     SQLAlchemy core features can be utilized. (such as connection pool)
-- Type hint support.
+
 
 ## How to install (TODO)
 You can install from PyPI by the follow command.
@@ -33,88 +28,420 @@ pip install ...
 
 ## Usage
 
-- First step (In case that TWinSQLA object is available in global scope)
+### First step (In case that TWinSQLA object is available in global scope)
 
+```python
+from typing import Optional
+from collections import OrderedDict
+import sqlalchemy
+from twinsqla import TWinSQLA
+
+engine: sqlalchemy.engine.base.Engine = sqlalchemy.create_engine(...)
+sqla: TWinSQLA = TWinSQLA(engine)
+
+class StaffDao():
+    @sqla.select("SELECT * FROM staff WHERE staff_id = /* :staff_id */1")
+    def find_by_id(self, staff_id: int) -> Tuple[OrderDict, ...]:
+        pass
+```
+
+At first, create instance of sqlalchemy engine, and create TWinSQLA instance with sqlalchemy engine.
+```python
+engine: sqlalchemy.engine.base.Engine = sqlalchemy.create_engine(...)
+sqla: TWinSQLA = TWinSQLA(engine)
+```
+
+To execute select query, use `sqla.select` decorator. In this case, `sqla` is TWinSQLA instance.
+```python
+@sqla.select("SELECT * FROM staff WHERE staff_id = /* :staff_id */1")
+def find_by_id(self, staff_id: int) -> Tuple[OrderDict, ...]:
+    pass
+```
+
+The above example, select query in decorator's argument is written as "two-way SQL."
+When called `dao.find_by_id(staff_id=10)`, then the like following code will be executed.
+```python
+> query = sqlalchemy.sql.text("SELECT * FROM staff WHERE staff_id = :staff_id")
+> engine.execute(query, {staff_id:10})
+```
+The execution results will be converted to sequence of OrderedDict, and returned from the above method.
+
+The `sqla.select` decorator can return object for your custom class, or return the results iterable.  For more details, see the other section.
+
+### In production usage
+
+For about production usage, you may separate source codes as dao classes, entity classes, and handling transaction classes.
+
+```python
+from dataclasses import dataclass
+import twinsqla
+from twinsqla import TWinSQLA, table
+
+# Entity class
+@dataclass(frozen=True)
+class Staff:
+    staff_id: int
+    staff_name: str
+    age: int
+
+
+# Entity class (Only used in insert query)
+@dataclass(frozen=True)
+@table("staff")
+class NewStaff:
+    staff_name: str
+    age: int
+
+
+# Dao class
+class StaffDao:
+    def __init__(self, sqla: TWinSQLA):
+        self.sqla: TWinSQLA = sqla
+
+    @twinsqla.select(
+        "SELECT * FROM staff WHERE staff_id >= /* :more_than_id */2",
+        result_type=List[Staff]
+    )
+    def fetch(self, more_than_id: int) -> List[Staff]:
+        pass
+
+    @twinsqla.insert()
+    def insert(self, staff: NewStaff):
+        pass
+
+
+# Service class (Handling database transaction)
+class StaffService:
+    def __init__(self, sqla: TWinSQLA):
+        self.sqla: TWinSQLA = sqla
+        self.staff_dao: StaffDao = StaffDao(sqla)
+
+    def find_staff(self, more_than_id: int) -> List[Staff]:
+        return self.staff_dao.fetch(more_than_id)
+
+    def register(self, staff_name: str, age: int):
+        new_staff: NewStaff = NewStaff(staff_name=staff_name, age=age)
+
+        # DB transaction scope
+        with self.sqla.transaction():
+            self.staff_dao.insert(new_staff)
+```
+
+#### Dao class
+
+##### Initializing
+
+In this cases, the TWinSQLA object is not existed in global scope but only in dao instance scope. So, you cannot use TWinSQLA instance decorators (for example : `@sqla.select()`) at the dao methods.
+Instead of using instance decorators, you can use TWinSQLA function decorators. (for example : `@twinsqla.select()`)
+
+When executing, the TWinSQLA function decorators search TWinSQLA object. By this search, TWinSQLA instance can be found specified by one of the follow ways.
+
+- By configured with instance parameter with named 'sqla'. (above the sample code)
     ```python
-    from typing import Optional
-    import sqlalchemy
-    from twinsqla import TWinSQLA
-
-    engine: sqlalchemy.engine.base.Engine = sqlalchemy.create_engine(...)
-    sqla: TWinSQLA = TWinSQLA(engine)
-
-    class StaffDao():
-        @sqla.select("SELECT * FROM staff WHERE staff_id = /* :staff_id */1")
-        def find_by_id(self, staff_id: int) -> Optional[Staff]:
-            pass
+    def __init__(self, sqla: TWinSQLA):
+        self.sqla: TWinSQLA = sqla
     ```
 
-- In production usage
+- Or, the other way, by specified with method arguments with named 'sqla'.
+    ```python
+    @twinsqla.select(...)
+    def fetch(self, sqla: TWinSQLA, more_than_id: int) -> List[Staff]:
+        pass
+    ```
 
-    - staff_dao.py
-        ```python
-        import twinsqla
-        from twinsqla import TWinSQLA
+##### Select
 
-        class StaffDao:
-            def __init__(self, sqla: TWinSQLA):
-                self.sqla: TWinSQLA = sqla
+To executing select query, you need to use `twinsqla.select()` function decorator instead of `sqla.select()` instance decorator.
+```python
+@twinsqla.select(
+    "SELECT * FROM staff WHERE staff_id >= /* :more_than_id */2", ...
+)
+def fetch(self, more_than_id: int) -> ... :
+    pass
+```
 
-            @twinsqla.select(
-                "SELECT * FROM staff WHERE staff_id >= /* :more_than_id */2",
-                result_type=List[Staff]
-            )
-            def fetch(self, more_than_id: int) -> List[Staff]:
-                pass
+You can customise the results of select query by the decorator's argument `result_type`.
+The argument `result_type` needs to be specified a class or sequence of a class.
+In the case that results of select query is more than one object, you need specify the `result_type` as sequence of a class. (for example, `List[...]`)
+```python
+@twinsqla.select(
+    ... , result_type=List[Staff]
+)
+def fetch(...) -> List[Staff]:
+    pass
+```
+In the above code, each one result of select query is convert to Staff instance, and `fetch()` method returns list of Staff.
 
-            @twinsqla.insert()
-            def insert(self, staff: Staff):
-                pass
-        ```
+##### Insert
 
-        You need to specify the TWinSQLA instance by one of the follow way.
+Other examples, to insert a record, you can use `twinsqla.insert()` function decorator.
+```python
+@twinsqla.insert()
+def insert(self, staff: NewStaff):
+    pass
+```
+The `insert()` decorator automatically build insert query with `NewStaff` instance which class decorated by `@table()` with table_name.
+```python
+> query = sqlalchemy.sql.text("INSERT INTO staff(staff_name, age) VALUES (:staff_name, :age)")
+> engine.execute(query, {staff_name: staff.staff_name, age: staff.age})
+```
 
-        - By configured with instance parameter with named 'sqla'. (See above the sample code)
-        - Or, by specified with method arguments with named 'sqla'.
+By other way, you can build insert query by your hand as following.
+```python
+@twinsqla.insert("INSERT INTO staff(staff_name, age) VALUES (:staff_name, :age)")
+def insert(self, staff_name: str, age: int):
+    pass
+```
 
-            ```python
-            @twinsqla.select(...)
-            def fetch(self, sqla: TWinSQLA, more_than_id: int) -> List[Staff]:
-                pass
-            ```
+#### Entity class
 
-    - staff.py
-        ```python
-        from typing import Optional
-        from dataclasses import dataclass
-        from twinsqla import table
+##### Result of select
 
-        @dataclass(frozen=True)
-        @table("staff")
-        class Staff:
-            staff_id: Optional[int]
-            staff_name: str
-        ```
+Entity class of select query needs to have the constructor with arguments of listed column names
+```python
+class Staff:
+    def __init__(self, staff_id: int, staff_name: str, age: int):
+        self.staff_id: int = staff_id
+        self.staff_name: str = staff_name
+        self.age: int = age
+```
 
-        We recommend using `dataclass` decorator in operations of insert or update.
+The above code can be replaced to the following with decorated by `@dataclass()`.
+```python
+from dataclasses import dataclass
 
-    - staff_service.py
-        ```python
-        class StaffService:
-            def __init(self, sqla: TWinSQLA):
-                self.sqla: TWinSQLA = sqla
-                self.staff_dao: StaffDao = StaffDao(sqla)
+@dataclass(frozen=True)
+class Staff:
+    staff_id: int
+    staff_name: str
+    age: int
+```
 
-            def find_staff(self, more_than_id: int) -> List[Staff]:
-                return self.staff_dao.fetch(more_than_id)
+##### Insert
 
-            def register(self, staff_name: str):
-                new_staff: Staff = Staff(staff_id=None, staff_name=staff_name)
+Entity class of insert query with automatically building needs to be decorated by `@table()` with argument of the table name and have attributes for inserting.
 
-                # db transaction scope
-                with self.sqla.transaction():
-                    self.staff_dao.insert(new_staff)
-        ```
+```python
+@dataclass(frozen=True)
+@table("staff")
+class NewStaff:
+    staff_name: str
+    age: int
+```
+
+In the above code, use the `NewStaff` instance can insert into 'staff' table with columns 'staff_name' and 'age'.
+
+### Transaction
+In using TWinSQLA query, `TWinSQLA.transaction()` can handle database transaction by context manager via sqlalchemy api.
+```python
+with sqla.transaction():
+    # execute query
+```
+When any exceptions are not occured in context block, then database transaction are commited. Otherwise, if any exceptions are occured, database transaction will be rollbacked and sqlalchemy exception are raised over context bock.
+
+On transaction, you need to consider abount handling [sqlalchemy.exc.DBAPIError](https://docs.sqlalchemy.org/en/13/core/exceptions.html#sqlalchemy.exc.DBAPIError), which raised in database operation failed.
+
+## API Reference
+
+### `twinsqla.TWinSQLA`
+```python
+    def __init__(self, engine: sqlalchemy.engine.base.Engine, *,
+                 available_dynamic_query: bool = True,
+                 sql_file_root: Optional[Union[Path, str]] = None,
+                 cache_size: Optional[int] = 128):
+        ...
+    """
+    Args:
+        engine (sqlalchemy.engine.base.Engine): SQLAlchemy engine instance.
+        available_dynamic_query (bool, optional):
+            If True, then two-ways SQL is available.
+            If False, sql statements are not converted in executing
+            but executed as it is specified. Defaults to True.
+        sql_file_root (Optional[Union[Path, str]], optional):
+            Specify the root directory of sql files. Defaults to None.
+        cache_size (Optional[int], optional):
+            Cache size of loaded query function. Defaults to 128.
+    """
+```
+
+### `TWinSQLA.transaction()`
+
+### `twinsqla.select()`, `TWinSQLA.select()`
+```python
+def select(query: Optional[str] = None, *, sql_path: Optional[str] = None,
+           result_type: Type[Any] = Tuple[OrderedDict, ...],
+           iteratable: bool = False):
+    """
+    Function decorator of select operation.
+    Only one argument `query` or `sql_path` must be specified.
+
+    In called decorated method, the processing implemented by the method
+    is not executed, but arguments of method are used for bind parameters.
+
+    Args:
+        query (Optional[str], optional):
+            select query (available TwoWay SQL). Defaults to None.
+        sql_path (Optional[str], optional):
+            file path with sql (available TwoWay SQL). Defaults to None.
+        result_type (Type[Any], optional):
+            return type. Defaults to Tuple[OrderedDict, ...].
+        iteratable (bool, optional):
+            When you want to fetching iterataly result, then True specified
+            and returned ResultIterator object. Defaults to False.
+
+    Returns:
+        Callable: Function decorator
+    """
+```
+
+### `twinsqla.insert()`, `TWinSQLA.insert()`
+```python
+def insert(query: Optional[str] = None, *, sql_path: Optional[str] = None,
+           table_name: Optional[str] = None, result_type: Type[Any] = None,
+           iteratable: bool = False):
+    """
+    Function decorator of insert operation.
+    In constructing insert query by yourself, you need to specify either
+    one of the arguments `query` or `sql_path`.
+
+    In neither `query` nor `sql_path` are specified, this decorator creates
+    insert query with arguments of decorated method.
+    In this case, you need to specify inserted table name by decorator
+    argument 'table_name' or decorating '@twinsqla.table' to entity class.
+
+    Args:
+        query (Optional[str], optional):
+            insert query (available TwoWay SQL). Defaults to None.
+        sql_path (Optional[str], optional):
+            file path with sql (available TwoWay SQL). Defaults to None.
+        table_name (Optional[str], optional):
+            table name for inserting. Defaults to None.
+        result_type (Type[Any], optional):
+            When constructing "INSERT RETURNING" query, it is useful to
+            specify return type. Defaults to None.
+        iteratable (bool, optional):
+            In almost cases, this argument need not to specified.
+            The only useful case is in using "INSERT RETURNING" query.
+            Defaults to False.
+
+    Returns:
+        Callable: Function decorator for insert query
+    """
+```
+
+### `twinsqla.update()`, `TWinSQLA.update()`
+```python
+def update(query: Optional[str] = None, *, sql_path: Optional[str] = None,
+           table_name: Optional[str] = None,
+           condition_columns: Union[str, Tuple[str, ...]] = (),
+           result_type: Type[Any] = None, iteratable: bool = False):
+    """
+    Function decorator of update operation.
+    In constructing update query by yourself, you need to specify either
+    one of the arguments `query` or `sql_path`.
+
+    In neither `query` nor `sql_path` are specified, this decorator creates
+    update query with arguments of decorated method.
+    In this case, you need follows.
+        1. To specify updated table name by decorator argument 'table_name'
+            or by decorating '@twinsqla.table' to entity class.
+        2. To specifry the column names for using WHERE conditions
+            by decorator argument 'condition_columns'
+
+    Args:
+        query (Optional[str], optional):
+            update query (available TwoWay SQL). Defaults to None.
+        sql_path (Optional[str], optional):
+            file path with sql (available TwoWay SQL). Defaults to None.
+        table_name (Optional[str], optional):
+            table name for updating. Defaults to None.
+        condition_columns (Union[str, Tuple[str, ...]], optional):
+            column names in WHERE condition. In almost cases, you are
+            recommended to specify primary key names of the table.
+            Defaults to ().
+        result_type (Type[Any], optional):
+            When constructing "UPDATE RETURNING" query, it is useful to
+            specify return type. Defaults to None.
+        iteratable (bool, optional):
+            In almost cases, this argument need not to specified.
+            The only useful case is in using "UPDATE RETURNING" query.
+            Defaults to False.
+
+    Returns:
+        Callable: Function decorator for update query
+    """
+```
+
+### `twinsqla.delete()`, `TWinSQLA.delete()`
+```python
+def delete(query: Optional[str] = None, *, sql_path: Optional[str] = None,
+           table_name: Optional[str] = None,
+           condition_columns: Union[str, Tuple[str, ...]] = (),
+           result_type: Type[Any] = None, iteratable: bool = False):
+    """
+    Function decorator of delete operation.
+    In constructing delete query by yourself, you need to specify either
+    one of the arguments `query` or `sql_path`.
+
+    In neither `query` nor `sql_path` are specified, this decorator creates
+    delete query with arguments of decorated method.
+    In this case, you need follows.
+        1. To specify deleted table name by decorator argument 'table_name'
+            or by decorating '@twinsqla.table' to entity class.
+        2. To specifry the column names for using WHERE conditions
+            by decorator argument 'condition_columns'
+
+    Args:
+        query (Optional[str], optional):
+            delete query (available TwoWay SQL). Defaults to None.
+        sql_path (Optional[str], optional):
+            file path with sql (available TwoWay SQL). Defaults to None.
+        table_name (Optional[str], optional):
+            table name for deleting. Defaults to None.
+        condition_columns (Union[str, Tuple[str, ...]], optional):
+            column names in WHERE condition. In almost cases, you are
+            recommended to specify primary key names of the table.
+            Defaults to ().
+        result_type (Type[Any], optional):
+            When constructing "DELETE RETURNING" query, it is useful to
+            specify return type. Defaults to None.
+        iteratable (bool, optional):
+            In almost cases, this argument need not to specified.
+            The only useful case is in using "DELETE RETURNING" query.
+            Defaults to False.
+
+    Returns:
+        Callable: Function decorator for delete query
+    """
+```
+
+### `twinsqla.execute()`, `TWinSQLA.execute()`
+```python
+def execute(query: Optional[str] = None, *, sql_path: Optional[str] = None,
+            result_type: Type[Any] = Tuple[OrderedDict, ...],
+            iteratable: bool = False):
+    """
+    Function decorator of any operation.
+    Only one argument `query` or `sql_path` must be specified.
+
+    In called decorated method, the processing implemented by the method
+    is not executed, but arguments of method are used for bind parameters.
+
+    Args:
+        query (Optional[str], optional):
+            any query (available TwoWay SQL). Defaults to None.
+        sql_path (Optional[str], optional):
+            file path with sql (available TwoWay SQL). Defaults to None.
+        result_type (Type[Any], optional):
+            return type. Defaults to Tuple[OrderedDict, ...].
+        iteratable (bool, optional):
+            When you want to fetching iterataly result, then True specified
+            and returned ResultIterator object. Defaults to False.
+
+    Returns:
+        Callable: Function decorator
+    """
+```
 
 ## SQL Template
 ### Bind variable
@@ -123,7 +450,7 @@ TWinSQLA's two-way SQL can handle the bind parameter named *some_parameter* as f
 ```sql
 /* :some_parameter */_dummy_value_
 ```
-Where, *_dummy_value_* is ignored in TWinSQLA query.
+Where, *_dummy_value_* is ignored in TWinSQLA dynamic query.
 
 Implementation.
 ```python
@@ -190,9 +517,9 @@ This bind parameter `:dynamic_param` is automatically generated by TWinSQLA to a
 
 Definition of dynamic if-block
 ```sql
-/*%if _python_expression_ */ expression
-[ /*%elif _python_expression_ */ dummy_op expression [...] ]
-[ /*%else*/ dummy_op expression ]
+/*%if _python_expression_ */ sql_expression
+[ /*%elif _python_expression_ */ dummy_op sql_expression [...] ]
+[ /*%else*/ dummy_op sql_expression ]
 /*%end*/
 
 dummy_op := "AND" | "OR"
@@ -336,7 +663,7 @@ sample
 SELECT * FROM table_name
 WHERE
     /*%for item in iterator */
-    some_column = /* $item */'dummy'
+    some_column = /* item */'dummy'
     /*%or*/
     /*%end*/
 ```
