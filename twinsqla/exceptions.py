@@ -2,7 +2,28 @@ from typing import List
 from inspect import signature
 
 
-class NoQueryArgumentException(Exception):
+class TWinSQLAException(Exception):
+    """
+    Exception for TWinSQLA.
+
+    This exception is occured in invalid queries or method's arguments, etc.
+    In other words, this exception will be raised when your implementation
+    about query is invalid.
+    So almost cases, you don't need to care for handling this exception.
+    But, if occured this exceptions, You need to fix your implementation
+    before production lereased
+    """
+    pass
+
+
+class QueryParseFailedException(TWinSQLAException):
+    """
+    Occured in failed to parse dynamic query.
+    """
+    pass
+
+
+class NoQueryArgumentException(TWinSQLAException):
     def __init__(self):
         super().__init__(
             "No 'query' nor 'sql_path' are specified."
@@ -10,7 +31,7 @@ class NoQueryArgumentException(Exception):
         )
 
 
-class DuplicatedQueryArgumentException(Exception):
+class DuplicatedQueryArgumentException(TWinSQLAException):
     def __init__(self):
         super().__init__(
             "Both 'query' and 'sql_path' are specified."
@@ -18,11 +39,11 @@ class DuplicatedQueryArgumentException(Exception):
         )
 
 
-class InvalidStructureException(Exception):
+class InvalidStructureException(TWinSQLAException):
     pass
 
 
-class InvalidTableNameException(Exception):
+class InvalidTableNameException(TWinSQLAException):
     def __init__(self, table_name: str, pattern):
         super().__init__(
             f"The specified table name '{table_name}' is"
@@ -32,7 +53,7 @@ class InvalidTableNameException(Exception):
         self.table_name: str = table_name
 
 
-class NotFoundTableNameException(Exception):
+class NotFoundTableNameException(TWinSQLAException):
     def __init__(self, entity: any, operation: str, param_name: str):
         super().__init__(
             f"The table name is not found in the object '{entity}'."
@@ -43,7 +64,7 @@ class NotFoundTableNameException(Exception):
         )
 
 
-class NoSpecifiedInstanceException(Exception):
+class NoSpecifiedInstanceException(TWinSQLAException):
     def __init__(self, func: callable):
         arguments: List[str] = [
             f"'{param}'" for param
@@ -56,7 +77,7 @@ class NoSpecifiedInstanceException(Exception):
         super().__init__(message)
 
 
-class NoSpecifiedEntityException(Exception):
+class NoSpecifiedEntityException(TWinSQLAException):
     def __init__(self, func: callable):
         arguments: List[str] = [
             f"'{param}'" for param in signature(func).parameters.keys()

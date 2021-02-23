@@ -1,9 +1,10 @@
 from typing import Optional, Union, Tuple, List, Dict
 from abc import ABCMeta, abstractmethod
 
-from lark import Lark, Transformer, Tree, v_args
+from lark import Lark, Transformer, Tree, v_args, LarkError
 
 from ._support import description
+from .exceptions import QueryParseFailedException
 
 
 class TwinQuery():
@@ -238,6 +239,13 @@ class DynamicParser():
         self.transformer: QueryTransformer = QueryTransformer()
 
     def parse(self, query: str, arg_keys: Tuple[str]) -> DynamicQuery:
+        try:
+            return self._do_parse(query, arg_keys)
+        except LarkError as lark_exc:
+            raise QueryParseFailedException(
+                "Failed to parse dynamic query.") from lark_exc
+
+    def _do_parse(self, query: str, arg_keys: Tuple[str]) -> DynamicQuery:
 
         root_tree: Tree = self.parser.parse(query)
         dynamic_params: List[TwinFactor] = self._seek_dynamic_params(

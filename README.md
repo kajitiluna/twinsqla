@@ -232,14 +232,22 @@ class NewStaff:
 In the above code, use the `NewStaff` instance can insert into 'staff' table with columns 'staff_name' and 'age'.
 
 ### Transaction
-In using TWinSQLA query, `TWinSQLA.transaction()` can handle database transaction by context manager via sqlalchemy api.
+In using TWinSQLA, `TWinSQLA.transaction()` can handle database transaction by context manager via sqlalchemy api.
 ```python
 with sqla.transaction():
     # execute query
 ```
 When any exceptions are not occured in context block, then database transaction are commited. Otherwise, if any exceptions are occured, database transaction will be rollbacked and sqlalchemy exception are raised over context bock.
 
-On transaction, you need to consider abount handling [sqlalchemy.exc.DBAPIError](https://docs.sqlalchemy.org/en/13/core/exceptions.html#sqlalchemy.exc.DBAPIError), which raised in database operation failed.
+### Exceptions
+In using TWinSQLA, two type base exceptions may be occured.
+- `twinsqla.exceptions.TWinSQLAException`
+- `sqlalchemy.exc.SQLAlchemyError`
+
+`TWinSQLAException` is occured when your queries or implementation are invalid.
+The other hand, `SQLAlchemyError` is raised by sqlalchemy.
+
+In implementation, you need to consider about handling [sqlalchemy.exc.DBAPIError](https://docs.sqlalchemy.org/en/13/core/exceptions.html#sqlalchemy.exc.DBAPIError), which raised in database operation failed.
 
 ## API Reference
 
