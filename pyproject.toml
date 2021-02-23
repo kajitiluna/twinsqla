@@ -3,7 +3,10 @@ name = "twinsqla"
 version = "0.0.1"
 description = "TWinSQLA is a light framework for mapping SQL statements to python functions and methods."
 authors = ["Yoshiki Kajihara"]
-license = "Apache-2.0 License"
+license = "Apache-2.0"
+readme = "README.md"
+homepage = "https://github.com/kajitiluna/twinsqla"
+repository = "https://github.com/kajitiluna/twinsqla"
 
 [tool.poetry.dependencies]
 python = "^3.6"

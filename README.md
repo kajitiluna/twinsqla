@@ -20,10 +20,10 @@ TWinSQLA is a light framework for mapping SQL statements to python functions and
     SQLAlchemy core features can be utilized. (such as connection pool)
 
 
-## How to install (TODO)
+## How to install
 You can install from PyPI by the follow command.
 ```bash
-pip install ...
+pip install twinsqla
 ```
 
 ## Usage
