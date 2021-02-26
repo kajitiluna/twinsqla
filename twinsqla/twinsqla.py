@@ -1,3 +1,4 @@
+import logging
 from typing import Callable, Any, List, Tuple, Optional, Union
 from typing import Type, TypeVar, Generic
 from collections import OrderedDict
@@ -59,6 +60,7 @@ class TWinSQLA:
             sql_file_root=sql_file_root, cache_size=cache_size)
         self._type_builder: ResultTypeBuilder = ResultTypeBuilder(cache_size)
         self._locals: threading.local = threading.local()
+        self._logger = logging.getLogger(__name__)
 
     @contextmanager
     def transaction(self):
@@ -296,6 +298,8 @@ class TWinSQLA:
     def _execute_query(self, prepared: PreparedQuery) -> ResultProxy:
         query: sqlalchemy.sql.text = prepared.statement()
         bind_params: Union[dict, List[dict]] = prepared.bind_params()
+
+        self._logger.info(f"Execute query : {query.text}")
 
         return self._locals.session.execute(query, bind_params) \
             if getattr(self._locals, 'session', None) \
