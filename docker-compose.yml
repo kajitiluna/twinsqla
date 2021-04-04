@@ -25,7 +25,10 @@ services:
       MYSQL_DATABASE: "test_db"
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        - PYTHON_VERSION=${PYTHON_VERSION:-3.6}
     volumes:
       - ./:/app
     links:
