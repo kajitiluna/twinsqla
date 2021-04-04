@@ -243,7 +243,8 @@ class DynamicParser():
             return self._do_parse(query, arg_keys)
         except LarkError as lark_exc:
             raise QueryParseFailedException(
-                "Failed to parse dynamic query.") from lark_exc
+                f"Failed to parse dynamic query. Detail : {lark_exc}"
+            ) from lark_exc
 
     def _do_parse(self, query: str, arg_keys: Tuple[str]) -> DynamicQuery:
 

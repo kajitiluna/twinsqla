@@ -1,3 +1,5 @@
+import logging
+
 from .twinsqla import TWinSQLA, ResultIterator
 from .twinsqla import table
 from .twinsqla import select, insert, update, delete
@@ -9,3 +11,5 @@ __all__ = [
     "select", "insert", "update", "delete",
     "TWinSQLAException"
 ]
+
+logging.getLogger("twinsqla").addHandler(logging.NullHandler())

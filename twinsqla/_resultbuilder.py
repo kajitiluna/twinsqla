@@ -41,14 +41,45 @@ class ResultType(Generic[RESULT_TYPE]):
 class ResultTypeBuilder:
     def __init__(self, cache_size: Optional[int] = None):
 
+        def _is_generic_sequencial(
+            result_type: Type[Any], meta_param: str
+        ) -> bool:
+
+            orign_class: Optional[type] = getattr(
+                result_type, meta_param, None)
+
+            if not orign_class:
+                return False
+
+            try:
+                if issubclass(orign_class, str):
+                    return False
+                if issubclass(orign_class, Sequence):
+                    return True
+            except Exception:
+                pass
+
+            return False
+
         def _is_sequencial(result_type: Type[Any]) -> bool:
             if result_type in (list, tuple, List, Tuple):
                 return True
 
-            if issubclass(result_type, str):
-                return False
-            if issubclass(result_type, Sequence):
+            # python_version >= 3.7
+            if _is_generic_sequencial(result_type, "__origin__"):
                 return True
+            # python_version < 3.7
+            if _is_generic_sequencial(result_type, "__extra__"):
+                return True
+
+            try:
+                if issubclass(result_type, str):
+                    return False
+                if issubclass(result_type, Sequence):
+                    return True
+            except Exception:
+                pass
+
             return False
 
         @lru_cache(maxsize=cache_size)

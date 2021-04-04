@@ -28,7 +28,7 @@ union_op: "UNION"i ( "ALL"i | "DISTINCT"i )
 order: "ORDER"i "BY"i order_query ( "," order_query )*
 order_query: expression ( ("ASC"i | "DESC"i ) ( "NULLS"i ( "LAST"i | "FIRST"i ) )? )?
 
-limit: "LIMIT"i INT ( "OFFSET"i INT )?
+limit: "LIMIT"i (twoway_bind_int | INT ) ( "OFFSET"i (twoway_bind_int | INT ) )?
 
 
 // SELECT BLOCK
@@ -242,6 +242,7 @@ numeric_symbol: SIGNED_NUMBER
               | sql_expression
 
 twoway_bind_numeric: twoway_bind_param SIGNED_NUMBER
+twoway_bind_int: twoway_bind_param INT
 
 
 ////////////////////////////////////////////////////////////////
