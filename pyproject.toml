@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "twinsqla"
-version = "0.0.2"
+version = "0.0.3"
 description = "TWinSQLA is a light framework for mapping SQL statements to python functions and methods."
 authors = ["Yoshiki Kajihara"]
 license = "Apache-2.0"
