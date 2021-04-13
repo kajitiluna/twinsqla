@@ -332,7 +332,7 @@ def table(name: str):
         raise exceptions.InvalidTableNameException(name, _PATTERN_TABLE_NAME)
 
     def _table(cls):
-        cls._table_name = name
+        setattr(cls, "__twinsqla_table_name", name)
         return cls
 
     return _table

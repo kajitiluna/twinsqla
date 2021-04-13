@@ -82,7 +82,7 @@ class QueryContext():
         bind_parameters: List[dict] = [
             {
                 key: value for key, value in vars(entity).items()
-                if (value is not None) and (key != "_table_name")
+                if (value is not None) and (key != "__twinsqla_table_name")
             } for entity in entities
         ]
 
@@ -107,11 +107,11 @@ class QueryContext():
     def find_table_name(self, entity: Any, operation: str) -> str:
         target_table_name: Optional[str] = self.table_name \
             if self.table_name \
-            else getattr(entity, "_table_name", None)
+            else getattr(entity, "__twinsqla_table_name", None)
 
         if target_table_name is None:
             raise exceptions.NotFoundTableNameException(
-                entity, operation, "_table_name")
+                entity, operation, "__twinsqla_table_name")
 
         return target_table_name
 
