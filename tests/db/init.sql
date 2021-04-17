@@ -1,4 +1,10 @@
 CREATE TABLE base_staff (
+    staff_id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL,
+    age INTEGER
+);
+
+CREATE TABLE auto_staff (
     staff_id SERIAL PRIMARY KEY,
     username TEXT NOT NULL,
     age INTEGER

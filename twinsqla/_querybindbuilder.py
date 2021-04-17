@@ -59,7 +59,7 @@ class PreparedQuery:
 
 
 @description(("query", "sql_path", "table_name", "bind_params",
-              "triggered_function", "function_args", "condition_columns"))
+              "triggered_function", "function_args"))
 class QueryContext():
 
     def __init__(self, *, query: Optional[str], sql_path: Optional[str],
@@ -74,7 +74,7 @@ class QueryContext():
         self.triggered_function: callable = triggered_function
         self.function_args: tuple = function_args
         self.function_kwargs: dict = function_kwargs
-        self.condition_columns: Tuple[str, ...] = condition_columns
+        self.conditions: Tuple[str, ...] = condition_columns
 
     def init_structure(self, operation: str) -> Tuple[str, List[dict]]:
         entities: List[Any] = self.find_entities()
@@ -82,11 +82,26 @@ class QueryContext():
         bind_parameters: List[dict] = [
             {
                 key: value for key, value in vars(entity).items()
-                if (value is not None) and (key != "_table_name")
+                if (value is not None) and (
+                    key not in ("__twinsqla_table_name",
+                                "__twinsqla_primary_keys",
+                                "__twinsqla_auto_keys")
+                )
             } for entity in entities
         ]
 
         return (table_name, bind_parameters)
+
+    def condition_columns(self) -> Tuple[str, ...]:
+        if self.conditions:
+            return self.conditions
+
+        entities: List[Any] = self.find_entities()
+        return getattr(entities[0], "__twinsqla_primary_keys", ())
+
+    def auto_keys(self) -> Tuple[str, ...]:
+        entities: List[Any] = self.find_entities()
+        return getattr(entities[0], "__twinsqla_auto_keys", ())
 
     def find_entities(self) -> List[Any]:
         target: Optional[Any] = (
@@ -107,11 +122,11 @@ class QueryContext():
     def find_table_name(self, entity: Any, operation: str) -> str:
         target_table_name: Optional[str] = self.table_name \
             if self.table_name \
-            else getattr(entity, "_table_name", None)
+            else getattr(entity, "__twinsqla_table_name", None)
 
         if target_table_name is None:
             raise exceptions.NotFoundTableNameException(
-                entity, operation, "_table_name")
+                entity, operation, "__twinsqla_table_name")
 
         return target_table_name
 
@@ -165,11 +180,15 @@ class InsertBindBuilder(QueryBindBuilder):
         table_name: str = structure[0]
         bind_parameters: List[dict] = structure[1]
 
+        auto_keys: Tuple[str, ...] = context.auto_keys()
+        insert_columns: List[str] = [
+            key for key in bind_parameters[0].keys() if key not in auto_keys]
+
         prepared_sql: str = (
             f"INSERT INTO {table_name}"
-            f"({', '.join([f'{key}' for key in bind_parameters[0].keys()])})"
+            f"({', '.join([f'{key}' for key in insert_columns])})"
             f" VALUES "
-            f"({', '.join([f':{key}' for key in bind_parameters[0].keys()])})"
+            f"({', '.join([f':{key}' for key in insert_columns])})"
         )
 
         return PreparedQuery(prepared_sql, bind_parameters)
@@ -188,13 +207,14 @@ class UpdateBindBuilder(QueryBindBuilder):
         structure: Tuple[str, List[dict]] = context.init_structure("update")
         table_name: str = structure[0]
         bind_parameters: List[dict] = structure[1]
+        condition_columns: Tuple[str, ...] = context.condition_columns()
 
         updating_columns: List[str] = [
             f'{key} = :{key}' for key in bind_parameters[0].keys()
-            if key not in context.condition_columns
+            if key not in condition_columns
         ]
         filter_conditions: List[str] = [
-            f"{column} = :{column}" for column in context.condition_columns
+            f"{column} = :{column}" for column in condition_columns
         ]
         prepared_sql: str = \
             f"UPDATE {table_name} SET {', '.join(updating_columns)}" + (
@@ -220,7 +240,7 @@ class DeleteBindBuilder(QueryBindBuilder):
         bind_parameters: List[dict] = structure[1]
 
         filter_conditions: List[str] = [
-            f"{column} = :{column}" for column in context.condition_columns
+            f"{column} = :{column}" for column in context.condition_columns()
         ]
         # TODO 削除対象のPKをまとめて1クエリで記載する
         prepared_sql: str = \
