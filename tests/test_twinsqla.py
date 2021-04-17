@@ -36,6 +36,11 @@ class StaffWithTable(Staff):
     pass
 
 
+@twinsqla.table("staff", pk="staff_id")
+class StaffWithTablePk(Staff):
+    pass
+
+
 class TWinSQLATest(unittest.TestCase):
 
     @classmethod
@@ -559,7 +564,7 @@ class TWinSQLATest(unittest.TestCase):
                 self.assertNotEqual(results[0]["username"], "UPDATED NAME")
                 self.assertIsNotNone(results[0]["age"])
 
-    def test_update_function_without_query(self):
+    def test_update_with_table_pk_function__without_query(self):
         for db_type in self.db_types:
             with self.subTest("update a value", db_type=db_type):
                 sqla: TWinSQLA = db_type.sqla
@@ -580,7 +585,55 @@ class TWinSQLATest(unittest.TestCase):
                 self.assertEqual(results[0]["username"], "UPDATED NAME")
                 self.assertEqual(results[0]["age"], 100)
 
-    def test_update_many_function_without_query(self):
+    def test_update_with_pk_function___without_query_table(self):
+        for db_type in self.db_types:
+            with self.subTest("update a value with table named entity",
+                              db_type=db_type):
+
+                sqla: TWinSQLA = db_type.sqla
+
+                @sqla.update(condition_columns="staff_id")
+                def update(entity: Staff):
+                    pass
+
+                with sqla.transaction():
+                    update(StaffWithTable(
+                        staff_id=6, username='UPDATED NAME', age=100))
+
+                results = [dict(value) for value
+                           in db_type.engine.execute(
+                    "SELECT * FROM staff WHERE username = 'UPDATED NAME'"
+                )]
+                self.assertTrue(len(results) == 1)
+                self.assertEqual(results[0]["staff_id"], 6)
+                self.assertEqual(results[0]["username"], "UPDATED NAME")
+                self.assertEqual(results[0]["age"], 100)
+
+    def test_update_function___without_query_table_pk(self):
+        for db_type in self.db_types:
+            with self.subTest("update a value with table named entity",
+                              db_type=db_type):
+
+                sqla: TWinSQLA = db_type.sqla
+
+                @sqla.update()
+                def update(entity: Staff):
+                    pass
+
+                with sqla.transaction():
+                    update(StaffWithTablePk(
+                        staff_id=6, username='UPDATED NAME', age=100))
+
+                results = [dict(value) for value
+                           in db_type.engine.execute(
+                    "SELECT * FROM staff WHERE username = 'UPDATED NAME'"
+                )]
+                self.assertTrue(len(results) == 1)
+                self.assertEqual(results[0]["staff_id"], 6)
+                self.assertEqual(results[0]["username"], "UPDATED NAME")
+                self.assertEqual(results[0]["age"], 100)
+
+    def test_update_many_with_table_pk_function___without_query(self):
         for db_type in self.db_types:
             with self.subTest("update a value", db_type=db_type):
                 sqla: TWinSQLA = db_type.sqla
@@ -593,6 +646,57 @@ class TWinSQLATest(unittest.TestCase):
                     Staff(staff_id=6, username='UPDATED NAME', age=100),
                     Staff(staff_id=7, username='UPDATED NAME', age=10),
                     Staff(staff_id=8, username='UPDATED NAME', age=30)
+                ]
+                with sqla.transaction():
+                    update(entities)
+
+                results = [dict(value) for value
+                           in db_type.engine.execute(
+                    "SELECT * FROM staff WHERE username = 'UPDATED NAME'"
+                )]
+                self.assertTrue(len(results) == 3)
+
+    def test_update_many_with_pk_function__without_query_table(self):
+        for db_type in self.db_types:
+            with self.subTest("update a value", db_type=db_type):
+                sqla: TWinSQLA = db_type.sqla
+
+                @sqla.update(condition_columns="staff_id")
+                def update(entities: List[Staff]):
+                    pass
+
+                entities: List[Staff] = [
+                    StaffWithTable(
+                        staff_id=6, username='UPDATED NAME', age=100),
+                    StaffWithTable(
+                        staff_id=7, username='UPDATED NAME', age=10),
+                    StaffWithTable(staff_id=8, username='UPDATED NAME', age=30)
+                ]
+                with sqla.transaction():
+                    update(entities)
+
+                results = [dict(value) for value
+                           in db_type.engine.execute(
+                    "SELECT * FROM staff WHERE username = 'UPDATED NAME'"
+                )]
+                self.assertTrue(len(results) == 3)
+
+    def test_update_many_function__without_query_table_pk(self):
+        for db_type in self.db_types:
+            with self.subTest("update a value", db_type=db_type):
+                sqla: TWinSQLA = db_type.sqla
+
+                @sqla.update(condition_columns="staff_id")
+                def update(entities: List[Staff]):
+                    pass
+
+                entities: List[Staff] = [
+                    StaffWithTablePk(
+                        staff_id=6, username='UPDATED NAME', age=100),
+                    StaffWithTablePk(
+                        staff_id=7, username='UPDATED NAME', age=10),
+                    StaffWithTablePk(
+                        staff_id=8, username='UPDATED NAME', age=30)
                 ]
                 with sqla.transaction():
                     update(entities)

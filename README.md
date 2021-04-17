@@ -341,7 +341,7 @@ def insert(query: Optional[str] = None, *, sql_path: Optional[str] = None,
 ```python
 def update(query: Optional[str] = None, *, sql_path: Optional[str] = None,
            table_name: Optional[str] = None,
-           condition_columns: Union[str, Tuple[str, ...]] = (),
+           condition_columns: Optional[Union[str, Tuple[str, ...]]] = None,
            result_type: Type[Any] = None, iteratable: bool = False):
     """
     Function decorator of update operation.
@@ -351,10 +351,12 @@ def update(query: Optional[str] = None, *, sql_path: Optional[str] = None,
     In neither `query` nor `sql_path` are specified, this decorator creates
     update query with arguments of decorated method.
     In this case, you need follows.
-        1. To specify updated table name by decorator argument 'table_name'
-            or by decorating '@twinsqla.table' to entity class.
+        1. To specify updated table name
+            by decorating '@twinsqla.table' to entity class.
+            or by decorator argument 'table_name'
         2. To specifry the column names for using WHERE conditions
-            by decorator argument 'condition_columns'
+            by decorating '@twinsqla.table' with `pk` parameter
+            or by decorator argument 'condition_columns'.
 
     Args:
         query (Optional[str], optional):
@@ -363,10 +365,10 @@ def update(query: Optional[str] = None, *, sql_path: Optional[str] = None,
             file path with sql (available TwoWay SQL). Defaults to None.
         table_name (Optional[str], optional):
             table name for updating. Defaults to None.
-        condition_columns (Union[str, Tuple[str, ...]], optional):
+        condition_columns (Optional[Union[str, Tuple[str, ...]]], optional):
             column names in WHERE condition. In almost cases, you are
             recommended to specify primary key names of the table.
-            Defaults to ().
+            Defaults to None.
         result_type (Type[Any], optional):
             When constructing "UPDATE RETURNING" query, it is useful to
             specify return type. Defaults to None.
@@ -384,7 +386,7 @@ def update(query: Optional[str] = None, *, sql_path: Optional[str] = None,
 ```python
 def delete(query: Optional[str] = None, *, sql_path: Optional[str] = None,
            table_name: Optional[str] = None,
-           condition_columns: Union[str, Tuple[str, ...]] = (),
+           condition_columns: Optional[Union[str, Tuple[str, ...]]] = None,
            result_type: Type[Any] = None, iteratable: bool = False):
     """
     Function decorator of delete operation.
@@ -394,10 +396,12 @@ def delete(query: Optional[str] = None, *, sql_path: Optional[str] = None,
     In neither `query` nor `sql_path` are specified, this decorator creates
     delete query with arguments of decorated method.
     In this case, you need follows.
-        1. To specify deleted table name by decorator argument 'table_name'
-            or by decorating '@twinsqla.table' to entity class.
+        1. To specify updated table name
+            by decorating '@twinsqla.table' to entity class.
+            or by decorator argument 'table_name'
         2. To specifry the column names for using WHERE conditions
-            by decorator argument 'condition_columns'
+            by decorating '@twinsqla.table' with `pk` parameter
+            or by decorator argument 'condition_columns'.
 
     Args:
         query (Optional[str], optional):
@@ -406,10 +410,10 @@ def delete(query: Optional[str] = None, *, sql_path: Optional[str] = None,
             file path with sql (available TwoWay SQL). Defaults to None.
         table_name (Optional[str], optional):
             table name for deleting. Defaults to None.
-        condition_columns (Union[str, Tuple[str, ...]], optional):
+        condition_columns (Optional[Union[str, Tuple[str, ...]]], optional):
             column names in WHERE condition. In almost cases, you are
             recommended to specify primary key names of the table.
-            Defaults to ().
+            Defaults to None.
         result_type (Type[Any], optional):
             When constructing "DELETE RETURNING" query, it is useful to
             specify return type. Defaults to None.

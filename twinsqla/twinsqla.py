@@ -181,7 +181,7 @@ class TWinSQLA:
     def update(self, query: Optional[str] = None, *,
                sql_path: Optional[str] = None,
                table_name: Optional[str] = None,
-               condition_columns: Union[str, Tuple[str, ...]] = (),
+               condition_columns: Optional[Union[str, Tuple[str, ...]]] = None,
                result_type: Type[Any] = None, iteratable: bool = False):
         """
         Function decorator of update operation.
@@ -191,10 +191,12 @@ class TWinSQLA:
         In neither `query` nor `sql_path` are specified, this decorator creates
         update query with arguments of decorated method.
         In this case, you need follows.
-            1. To specify updated table name by decorator argument 'table_name'
-                or by decorating '@twinsqla.table' to entity class.
+            1. To specify updated table name
+                by decorating '@twinsqla.table' to entity class.
+                or by decorator argument 'table_name'
             2. To specifry the column names for using WHERE conditions
-                by decorator argument 'condition_columns'
+                by decorating '@twinsqla.table' with `pk` parameter
+                or by decorator argument 'condition_columns'.
 
         Args:
             query (Optional[str], optional):
@@ -203,10 +205,12 @@ class TWinSQLA:
                 file path with sql (available TwoWay SQL). Defaults to None.
             table_name (Optional[str], optional):
                 table name for updating. Defaults to None.
-            condition_columns (Union[str, Tuple[str, ...]], optional):
+            condition_columns (
+                Optional[Union[str, Tuple[str, ...]]], optional
+            ):
                 column names in WHERE condition. In almost cases, you are
                 recommended to specify primary key names of the table.
-                Defaults to ().
+                Defaults to None.
             result_type (Type[Any], optional):
                 When constructing "UPDATE RETURNING" query, it is useful to
                 specify return type. Defaults to None.
@@ -225,7 +229,7 @@ class TWinSQLA:
     def delete(self, query: Optional[str] = None, *,
                sql_path: Optional[str] = None,
                table_name: Optional[str] = None,
-               condition_columns: Union[str, Tuple[str, ...]] = (),
+               condition_columns: Optional[Union[str, Tuple[str, ...]]] = None,
                result_type: Type[Any] = None, iteratable: bool = False):
         """
         Function decorator of delete operation.
@@ -235,10 +239,12 @@ class TWinSQLA:
         In neither `query` nor `sql_path` are specified, this decorator creates
         delete query with arguments of decorated method.
         In this case, you need follows.
-            1. To specify deleted table name by decorator argument 'table_name'
-                or by decorating '@twinsqla.table' to entity class.
+            1. To specify updated table name
+                by decorating '@twinsqla.table' to entity class.
+                or by decorator argument 'table_name'
             2. To specifry the column names for using WHERE conditions
-                by decorator argument 'condition_columns'
+                by decorating '@twinsqla.table' with `pk` parameter
+                or by decorator argument 'condition_columns'.
 
         Args:
             query (Optional[str], optional):
@@ -247,7 +253,9 @@ class TWinSQLA:
                 file path with sql (available TwoWay SQL). Defaults to None.
             table_name (Optional[str], optional):
                 table name for deleting. Defaults to None.
-            condition_columns (Union[str, Tuple[str, ...]], optional):
+            condition_columns (
+                Optional[Union[str, Tuple[str, ...]]], optional
+            ):
                 column names in WHERE condition. In almost cases, you are
                 recommended to specify primary key names of the table.
                 Defaults to ().
@@ -309,15 +317,17 @@ class TWinSQLA:
 _PATTERN_TABLE_NAME = re.compile(r"\A[a-zA-Z_][a-zA-Z0-9_]*\Z")
 
 
-def table(name: str):
+def table(name: str, *, pk: Union[str, Tuple[str, ...]] = ()):
     """
-    Class decorator to specify table name.
+    Class decorator to specify table name and primary keys.
     It is useful in the case using `@insert`, `@update` or `@delete` without
-    your query. By decorating `@table` to entity class, those function
-    decorators can specify the table name in constructing queries.
+    your query. By decorating `@table` to entity class,
+    those function decorators can specify the table name and primary keys
+    in constructing queries.
 
     Args:
         name (str): table name
+        pk (Union[str, Tuple[str, ...]]): column names of primary keys
 
     Raises:
         exceptions.InvalidTableNameException:
@@ -331,8 +341,11 @@ def table(name: str):
     if matcher is None:
         raise exceptions.InvalidTableNameException(name, _PATTERN_TABLE_NAME)
 
+    primary_keys: Tuple[str, ...] = (pk, ) if isinstance(pk, str) else pk
+
     def _table(cls):
         setattr(cls, "__twinsqla_table_name", name)
+        setattr(cls, "__twinsqla_primary_keys", primary_keys)
         return cls
 
     return _table
@@ -437,7 +450,7 @@ def _do_insert(query: Optional[str], sql_path: Optional[str],
 
 def update(query: Optional[str] = None, *, sql_path: Optional[str] = None,
            table_name: Optional[str] = None,
-           condition_columns: Union[str, Tuple[str, ...]] = (),
+           condition_columns: Optional[Union[str, Tuple[str, ...]]] = None,
            result_type: Type[Any] = None, iteratable: bool = False):
     """
     Function decorator of update operation.
@@ -447,10 +460,12 @@ def update(query: Optional[str] = None, *, sql_path: Optional[str] = None,
     In neither `query` nor `sql_path` are specified, this decorator creates
     update query with arguments of decorated method.
     In this case, you need follows.
-        1. To specify updated table name by decorator argument 'table_name'
-            or by decorating '@twinsqla.table' to entity class.
+        1. To specify updated table name
+            by decorating '@twinsqla.table' to entity class.
+            or by decorator argument 'table_name'
         2. To specifry the column names for using WHERE conditions
-            by decorator argument 'condition_columns'
+            by decorating '@twinsqla.table' with `pk` parameter
+            or by decorator argument 'condition_columns'.
 
     Args:
         query (Optional[str], optional):
@@ -459,10 +474,10 @@ def update(query: Optional[str] = None, *, sql_path: Optional[str] = None,
             file path with sql (available TwoWay SQL). Defaults to None.
         table_name (Optional[str], optional):
             table name for updating. Defaults to None.
-        condition_columns (Union[str, Tuple[str, ...]], optional):
+        condition_columns (Optional[Union[str, Tuple[str, ...]]], optional):
             column names in WHERE condition. In almost cases, you are
             recommended to specify primary key names of the table.
-            Defaults to ().
+            Defaults to None.
         result_type (Type[Any], optional):
             When constructing "UPDATE RETURNING" query, it is useful to
             specify return type. Defaults to None.
@@ -481,12 +496,11 @@ def update(query: Optional[str] = None, *, sql_path: Optional[str] = None,
 
 def _do_update(query: Optional[str], sql_path: Optional[str],
                table_name: Optional[str],
-               condition_columns: Union[str, Tuple[str, ...]],
+               condition_columns: Optional[Union[str, Tuple[str, ...]]],
                result_type: Type[Any], iteratable: bool,
                sqla: Optional[TWinSQLA] = None):
 
-    target_condition_columns: Tuple[str, ...] = condition_columns \
-        if isinstance(condition_columns, tuple) else (condition_columns, )
+    target_condition_columns: Tuple[str, ...] = _to_tuple(condition_columns)
 
     return QueryType.UPDATE.query_decorator(
         sqla=sqla, query=query, sql_path=sql_path,
@@ -497,7 +511,7 @@ def _do_update(query: Optional[str], sql_path: Optional[str],
 
 def delete(query: Optional[str] = None, *, sql_path: Optional[str] = None,
            table_name: Optional[str] = None,
-           condition_columns: Union[str, Tuple[str, ...]] = (),
+           condition_columns: Optional[Union[str, Tuple[str, ...]]] = None,
            result_type: Type[Any] = None, iteratable: bool = False):
     """
     Function decorator of delete operation.
@@ -507,10 +521,12 @@ def delete(query: Optional[str] = None, *, sql_path: Optional[str] = None,
     In neither `query` nor `sql_path` are specified, this decorator creates
     delete query with arguments of decorated method.
     In this case, you need follows.
-        1. To specify deleted table name by decorator argument 'table_name'
-            or by decorating '@twinsqla.table' to entity class.
+        1. To specify updated table name
+            by decorating '@twinsqla.table' to entity class.
+            or by decorator argument 'table_name'
         2. To specifry the column names for using WHERE conditions
-            by decorator argument 'condition_columns'
+            by decorating '@twinsqla.table' with `pk` parameter
+            or by decorator argument 'condition_columns'.
 
     Args:
         query (Optional[str], optional):
@@ -519,10 +535,10 @@ def delete(query: Optional[str] = None, *, sql_path: Optional[str] = None,
             file path with sql (available TwoWay SQL). Defaults to None.
         table_name (Optional[str], optional):
             table name for deleting. Defaults to None.
-        condition_columns (Union[str, Tuple[str, ...]], optional):
+        condition_columns (Optional[Union[str, Tuple[str, ...]]], optional):
             column names in WHERE condition. In almost cases, you are
             recommended to specify primary key names of the table.
-            Defaults to ().
+            Defaults to None.
         result_type (Type[Any], optional):
             When constructing "DELETE RETURNING" query, it is useful to
             specify return type. Defaults to None.
@@ -545,8 +561,7 @@ def _do_delete(query: Optional[str], sql_path: Optional[str],
                result_type: Type[Any], iteratable: bool,
                sqla: Optional[TWinSQLA] = None):
 
-    target_condition_columns: Tuple[str, ...] = condition_columns \
-        if isinstance(condition_columns, tuple) else (condition_columns, )
+    target_condition_columns: Tuple[str, ...] = _to_tuple(condition_columns)
 
     return QueryType.DELETE.query_decorator(
         sqla=sqla, query=query, sql_path=sql_path,
@@ -590,6 +605,16 @@ def _do_execute(query: Optional[str], sql_path: Optional[str],
     return QueryType.EXECUTE.query_decorator(
         sqla=sqla, query=query, sql_path=sql_path,
         result_type=result_type, iteratable=iteratable
+    )
+
+
+def _to_tuple(
+    condition_columns: Optional[Union[str, Tuple[str, ...]]]
+) -> Tuple[str, ...]:
+
+    return () if not condition_columns else (
+        (condition_columns, ) if isinstance(
+            condition_columns, str) else condition_columns
     )
 
 
