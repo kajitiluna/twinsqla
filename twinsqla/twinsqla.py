@@ -309,8 +309,8 @@ class TWinSQLA:
 
         self._logger.info(f"Execute query : {query.text}")
 
-        return self._locals.session.execute(query, bind_params) \
-            if getattr(self._locals, 'session', None) \
+        session = getattr(self._locals, 'session', None)
+        return session.execute(query, bind_params) if session \
             else self._engine.execute(query, bind_params)
 
 
