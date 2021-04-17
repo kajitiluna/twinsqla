@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, Any, List, Tuple, Optional, Union
+from typing import Callable, Any, List, Tuple, NamedTuple, Optional, Union
 from typing import Type, TypeVar, Generic
 from collections import OrderedDict
 from contextlib import contextmanager
@@ -317,7 +317,20 @@ class TWinSQLA:
 _PATTERN_TABLE_NAME = re.compile(r"\A[a-zA-Z_][a-zA-Z0-9_]*\Z")
 
 
-def table(name: str, *, pk: Union[str, Tuple[str, ...]] = ()):
+class autopk(NamedTuple):
+    """
+    Column name for specifying auto-generating column.
+
+    Attributes:
+        column (str): column name of auto-generating
+    """
+
+    column: str
+
+
+def table(name: str, *,
+          pk: Union[Union[str, autopk], Tuple[Union[str, autopk], ...]] = ()
+          ):
     """
     Class decorator to specify table name and primary keys.
     It is useful in the case using `@insert`, `@update` or `@delete` without
@@ -327,7 +340,8 @@ def table(name: str, *, pk: Union[str, Tuple[str, ...]] = ()):
 
     Args:
         name (str): table name
-        pk (Union[str, Tuple[str, ...]]): column names of primary keys
+        pk (Union[Union[str, autopk], Tuple[Union[str, autopk], ...]]):
+            column names of primary keys
 
     Raises:
         exceptions.InvalidTableNameException:
@@ -341,11 +355,22 @@ def table(name: str, *, pk: Union[str, Tuple[str, ...]] = ()):
     if matcher is None:
         raise exceptions.InvalidTableNameException(name, _PATTERN_TABLE_NAME)
 
-    primary_keys: Tuple[str, ...] = (pk, ) if isinstance(pk, str) else pk
+    primary_keys: Tuple[str, ...] = (pk, ) if isinstance(pk, str) else (
+        (pk.column, ) if isinstance(pk, autopk) else tuple(
+            [target.column if isinstance(
+                target, autopk) else target for target in pk]
+        )
+    )
+    auto_keys: Tuple[str, ...] = () if isinstance(pk, str) else (
+        (pk.column, ) if isinstance(pk, autopk) else tuple(
+            [target.column for target in pk if isinstance(target, autopk)]
+        )
+    )
 
     def _table(cls):
         setattr(cls, "__twinsqla_table_name", name)
         setattr(cls, "__twinsqla_primary_keys", primary_keys)
+        setattr(cls, "__twinsqla_auto_keys", auto_keys)
         return cls
 
     return _table

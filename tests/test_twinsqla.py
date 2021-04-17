@@ -41,6 +41,11 @@ class StaffWithTablePk(Staff):
     pass
 
 
+@twinsqla.table("auto_staff", pk=twinsqla.autopk("staff_id"))
+class StaffWithTableAutoPk(Staff):
+    pass
+
+
 class TWinSQLATest(unittest.TestCase):
 
     @classmethod
@@ -428,7 +433,7 @@ class TWinSQLATest(unittest.TestCase):
                 )]
                 self.assertTrue(len(results) == 0)
 
-    def test_insert_function_without_query(self):
+    def test_insert_with_table_function__without_query(self):
         for db_type in self.db_types:
             with self.subTest("insert a value", db_type=db_type):
                 sqla: TWinSQLA = db_type.sqla
@@ -449,7 +454,7 @@ class TWinSQLATest(unittest.TestCase):
                 self.assertEqual(results[0]["username"], "Zoo")
                 self.assertEqual(results[0]["age"], 88)
 
-    def test_insert_function_without_query2(self):
+    def test_insert_function__without_query_table(self):
         for db_type in self.db_types:
             with self.subTest("insert a value", db_type=db_type):
                 sqla: TWinSQLA = db_type.sqla
@@ -471,7 +476,32 @@ class TWinSQLATest(unittest.TestCase):
                 self.assertEqual(results[0]["username"], "Zoo")
                 self.assertEqual(results[0]["age"], 88)
 
-    def test_insert_function_without_query_no_tablename(self):
+    def test_insert_function__without_query_table_pk(self):
+        for db_type in self.db_types:
+            with self.subTest("insert a value", db_type=db_type):
+                sqla: TWinSQLA = db_type.sqla
+
+                @sqla.insert()
+                def insert(entity: Staff):
+                    pass
+
+                with sqla.transaction():
+                    insert(StaffWithTableAutoPk(
+                        staff_id=9999999, username='AUTO PK INSERT 1', age=3))
+
+                results = [dict(value) for value
+                           in db_type.engine.execute(
+                    """
+                    SELECT * FROM auto_staff
+                    WHERE username = 'AUTO PK INSERT 1'
+                    """
+                )]
+                self.assertEqual(len(results), 1)
+                self.assertNotEqual(results[0]["staff_id"], 9999999)
+                self.assertEqual(results[0]["username"], "AUTO PK INSERT 1")
+                self.assertEqual(results[0]["age"], 3)
+
+    def test_insert_function__without_query_no_tablename(self):
         for db_type in self.db_types:
             with self.subTest("insert a value", db_type=db_type):
                 sqla: TWinSQLA = db_type.sqla
@@ -490,7 +520,7 @@ class TWinSQLATest(unittest.TestCase):
                 )]
                 self.assertTrue(len(results) == 0)
 
-    def test_insert_many_function_without_query(self):
+    def test_insert_many_with_table__function_without_query(self):
         for db_type in self.db_types:
             with self.subTest("insert a value", db_type=db_type):
                 sqla: TWinSQLA = db_type.sqla
@@ -512,6 +542,60 @@ class TWinSQLATest(unittest.TestCase):
                     "SELECT * FROM staff WHERE staff_id >= 100"
                 )]
                 self.assertTrue(len(results) == 3)
+
+    def test_insert_many__function_without_query_table(self):
+        for db_type in self.db_types:
+            with self.subTest("insert a value", db_type=db_type):
+                sqla: TWinSQLA = db_type.sqla
+
+                @sqla.insert()
+                def insert(entities: List[Staff]):
+                    pass
+
+                entities: List[Staff] = [
+                    StaffWithTable(staff_id=100, username='Zoo', age=88),
+                    StaffWithTable(staff_id=101, username='Xaming', age=17),
+                    StaffWithTable(staff_id=102, username='Yorga', age=45),
+                ]
+                with sqla.transaction():
+                    insert(entities)
+
+                results = [dict(value) for value
+                           in db_type.engine.execute(
+                    "SELECT * FROM staff WHERE staff_id >= 100"
+                )]
+                self.assertTrue(len(results) == 3)
+
+    def test_insert_many__function_without_query_table_pk(self):
+        for db_type in self.db_types:
+            with self.subTest("insert a value", db_type=db_type):
+                sqla: TWinSQLA = db_type.sqla
+
+                @sqla.insert()
+                def insert(entities: List[Staff]):
+                    pass
+
+                entities: List[Staff] = [
+                    StaffWithTableAutoPk(
+                        staff_id=10001, username='AUTO PK INSERT 2', age=88),
+                    StaffWithTableAutoPk(
+                        staff_id=10002, username='AUTO PK INSERT 2', age=17),
+                    StaffWithTableAutoPk(
+                        staff_id=10003, username='AUTO PK INSERT 2', age=45),
+                ]
+                with sqla.transaction():
+                    insert(entities)
+
+                results = [dict(value) for value
+                           in db_type.engine.execute(
+                    """
+                    SELECT * FROM auto_staff
+                    WHERE username = 'AUTO PK INSERT 2'
+                    """
+                )]
+                self.assertEqual(len(results), 3)
+                for result in results:
+                    self.assertTrue(result["staff_id"] < 10000)
 
     query_update: str = """
         UPDATE staff SET username = :username, age = :age

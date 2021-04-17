@@ -83,9 +83,9 @@ class QueryContext():
             {
                 key: value for key, value in vars(entity).items()
                 if (value is not None) and (
-                    key != "__twinsqla_table_name"
-                ) and (
-                    key != "__twinsqla_primary_keys"
+                    key not in ("__twinsqla_table_name",
+                                "__twinsqla_primary_keys",
+                                "__twinsqla_auto_keys")
                 )
             } for entity in entities
         ]
@@ -98,6 +98,10 @@ class QueryContext():
 
         entities: List[Any] = self.find_entities()
         return getattr(entities[0], "__twinsqla_primary_keys", ())
+
+    def auto_keys(self) -> Tuple[str, ...]:
+        entities: List[Any] = self.find_entities()
+        return getattr(entities[0], "__twinsqla_auto_keys", ())
 
     def find_entities(self) -> List[Any]:
         target: Optional[Any] = (
@@ -176,11 +180,15 @@ class InsertBindBuilder(QueryBindBuilder):
         table_name: str = structure[0]
         bind_parameters: List[dict] = structure[1]
 
+        auto_keys: Tuple[str, ...] = context.auto_keys()
+        insert_columns: List[str] = [
+            key for key in bind_parameters[0].keys() if key not in auto_keys]
+
         prepared_sql: str = (
             f"INSERT INTO {table_name}"
-            f"({', '.join([f'{key}' for key in bind_parameters[0].keys()])})"
+            f"({', '.join([f'{key}' for key in insert_columns])})"
             f" VALUES "
-            f"({', '.join([f':{key}' for key in bind_parameters[0].keys()])})"
+            f"({', '.join([f':{key}' for key in insert_columns])})"
         )
 
         return PreparedQuery(prepared_sql, bind_parameters)

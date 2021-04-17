@@ -73,24 +73,17 @@ The `sqla.select` decorator can return object for your custom class, or return t
 For about production usage, you may separate source codes as dao classes, entity classes, and handling transaction classes.
 
 ```python
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import twinsqla
-from twinsqla import TWinSQLA, table
+from twinsqla import TWinSQLA, table, autopk
 
 # Entity class
 @dataclass(frozen=True)
+@table("staff", pk=autopk("staff_id"))
 class Staff:
-    staff_id: int
-    staff_name: str
-    age: int
-
-
-# Entity class (Only used in insert query)
-@dataclass(frozen=True)
-@table("staff")
-class NewStaff:
-    staff_name: str
-    age: int
+    staff_id: int = field(default=None)
+    staff_name: str = field(default=None)
+    age: int = field(default=None)
 
 
 # Dao class
@@ -106,7 +99,7 @@ class StaffDao:
         pass
 
     @twinsqla.insert()
-    def insert(self, staff: NewStaff):
+    def insert(self, staff: Staff):
         pass
 
 
@@ -120,7 +113,7 @@ class StaffService:
         return self.staff_dao.fetch(more_than_id)
 
     def register(self, staff_name: str, age: int):
-        new_staff: NewStaff = NewStaff(staff_name=staff_name, age=age)
+        new_staff: Staff = Staff(staff_name=staff_name, age=age)
 
         # DB transaction scope
         with self.sqla.transaction():
@@ -177,10 +170,10 @@ In the above code, each one result of select query is convert to Staff instance,
 Other examples, to insert a record, you can use `twinsqla.insert()` function decorator.
 ```python
 @twinsqla.insert()
-def insert(self, staff: NewStaff):
+def insert(self, staff: Staff):
     pass
 ```
-The `insert()` decorator automatically build insert query with `NewStaff` instance which class decorated by `@table()` with table_name.
+The `insert()` decorator automatically build insert query with `Staff` instance which class decorated by `@table()` with table_name.
 ```python
 > query = sqlalchemy.sql.text("INSERT INTO staff(staff_name, age) VALUES (:staff_name, :age)")
 > engine.execute(query, {staff_name: staff.staff_name, age: staff.age})
@@ -223,13 +216,14 @@ Entity class of insert query with automatically building needs to be decorated b
 
 ```python
 @dataclass(frozen=True)
-@table("staff")
-class NewStaff:
-    staff_name: str
-    age: int
+@table("staff", pk=autopk("staff_id"))
+class Staff:
+    staff_id: int = field(default=None)
+    staff_name: str = field(default=None)
+    age: int = field(default=None)
 ```
 
-In the above code, use the `NewStaff` instance can insert into 'staff' table with columns 'staff_name' and 'age'.
+In the above code, use the `Staff` instance can insert into 'staff' table with columns 'staff_name' and 'age'. The column 'staff_id' is removed in insert query by specified `autopk('staff_id')` in `@table()`'s `pk` argument.
 
 ### Transaction
 In using TWinSQLA, `TWinSQLA.transaction()` can handle database transaction by context manager via sqlalchemy api.
