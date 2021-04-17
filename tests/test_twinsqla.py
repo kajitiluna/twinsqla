@@ -1,3 +1,15 @@
+"""
+HOW TO TEST
+
+$ export PYTHON_VERSION=3.9
+$ docker-compose up --biuld
+
+...testing
+# press ctrl + C to stop docker containers.
+
+$ docker-compose down
+"""
+
 import unittest
 from typing import List, Tuple, Optional
 
@@ -155,7 +167,10 @@ class TWinSQLATest(unittest.TestCase):
         """
 
         for db_type in self.db_types:
-            with self.subTest("select one function", db_type=db_type):
+            with self.subTest(
+                "select one function with object's annotation",
+                db_type=db_type
+            ):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.select(self.query_select_one, result_type=Staff)
@@ -175,7 +190,9 @@ class TWinSQLATest(unittest.TestCase):
         """
 
         for db_type in self.db_types:
-            with self.subTest("select one function", db_type=db_type):
+            with self.subTest(
+                "select one function with static annotation.", db_type=db_type
+            ):
                 sqla: TWinSQLA = db_type.sqla
 
                 class StaffDao:
@@ -200,7 +217,11 @@ class TWinSQLATest(unittest.TestCase):
         """
 
         for db_type in self.db_types:
-            with self.subTest("select one function", db_type=db_type):
+            with self.subTest(
+                """select one function with static annotation
+                and named 'twinsqla'.""",
+                db_type=db_type
+            ):
                 sqla: TWinSQLA = db_type.sqla
 
                 class StaffDao:
@@ -225,7 +246,10 @@ class TWinSQLATest(unittest.TestCase):
         """
 
         for db_type in self.db_types:
-            with self.subTest("select one function", db_type=db_type):
+            with self.subTest(
+                """select one function with static annotation
+                and type searching""", db_type=db_type
+            ):
                 sqla: TWinSQLA = db_type.sqla
 
                 class StaffDao:
@@ -250,7 +274,9 @@ class TWinSQLATest(unittest.TestCase):
         """
 
         for db_type in self.db_types:
-            with self.subTest("select one function", db_type=db_type):
+            with self.subTest(
+                "select one function with sqla argument.", db_type=db_type
+            ):
                 sqla: TWinSQLA = db_type.sqla
 
                 class StaffDao:
@@ -271,7 +297,9 @@ class TWinSQLATest(unittest.TestCase):
         """
 
         for db_type in self.db_types:
-            with self.subTest("select one function", db_type=db_type):
+            with self.subTest(
+                "select one function except sqla object.", db_type=db_type
+            ):
                 class StaffDao:
                     @twinsqla.select(self.query_select_one, result_type=Staff)
                     def find_for_method(self, id: int) -> Staff:
@@ -287,7 +315,10 @@ class TWinSQLATest(unittest.TestCase):
         """
 
         for db_type in self.db_types:
-            with self.subTest("select one function", db_type=db_type):
+            with self.subTest(
+                "select one function not matched argument name.",
+                db_type=db_type
+            ):
                 class StaffDao:
                     @twinsqla.select(self.query_select_one, result_type=Staff)
                     def find_for_method(self, staff_id: int) -> Staff:
@@ -303,7 +334,9 @@ class TWinSQLATest(unittest.TestCase):
         """
 
         for db_type in self.db_types:
-            with self.subTest("select one function", db_type=db_type):
+            with self.subTest(
+                "select one function with duplicated param", db_type=db_type
+            ):
                 class StaffDao:
                     @twinsqla.select(self.query_select_one,
                                      sql_path="dummy.sql", result_type=Staff)
@@ -320,7 +353,9 @@ class TWinSQLATest(unittest.TestCase):
         """
 
         for db_type in self.db_types:
-            with self.subTest("select one function", db_type=db_type):
+            with self.subTest(
+                "select one function without query.", db_type=db_type
+            ):
                 class StaffDao:
                     @twinsqla.select(result_type=Staff)
                     def find_for_method(self, staff_id: int) -> Staff:
@@ -338,7 +373,7 @@ class TWinSQLATest(unittest.TestCase):
         """
 
         for db_type in self.db_types:
-            with self.subTest("returning a few values", db_type=db_type):
+            with self.subTest("returning a few values.", db_type=db_type):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.select(self.query_select_many,
@@ -348,7 +383,7 @@ class TWinSQLATest(unittest.TestCase):
 
                 results: Tuple[Staff, ...] = find_for_function(5)
                 self.assertIsInstance(results, tuple)
-                self.assertTrue(len(results) == 5)
+                self.assertEqual(len(results), 5)
 
     def test_select_function_returned_one_with_tuple(self):
         """
@@ -356,7 +391,9 @@ class TWinSQLATest(unittest.TestCase):
         """
 
         for db_type in self.db_types:
-            with self.subTest("returning a few values", db_type=db_type):
+            with self.subTest(
+                "returning a few values wtih one tuple.", db_type=db_type
+            ):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.select(self.query_select_one,
@@ -366,7 +403,7 @@ class TWinSQLATest(unittest.TestCase):
 
                 results: Tuple[Staff, ...] = find_for_function(5)
                 self.assertIsInstance(results, tuple)
-                self.assertTrue(len(results) == 1)
+                self.assertEqual(len(results), 1)
 
     def test_select_function_returned_one_unexpected_query_result(self):
         """
@@ -374,7 +411,9 @@ class TWinSQLATest(unittest.TestCase):
         """
 
         for db_type in self.db_types:
-            with self.subTest("returning a few values", db_type=db_type):
+            with self.subTest(
+                "returning a few values but only one handled.", db_type=db_type
+            ):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.select(self.query_select_many,
@@ -392,7 +431,7 @@ class TWinSQLATest(unittest.TestCase):
 
     def test_insert_function_with_query(self):
         for db_type in self.db_types:
-            with self.subTest("insert a value", db_type=db_type):
+            with self.subTest("insert a value with query.", db_type=db_type):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.insert(self.query_insert)
@@ -406,14 +445,14 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE staff_id = 100"
                 )]
-                self.assertTrue(len(results) == 1)
+                self.assertEqual(len(results), 1)
                 self.assertEqual(results[0]["staff_id"], 100)
                 self.assertEqual(results[0]["username"], "Zoo")
                 self.assertEqual(results[0]["age"], 88)
 
     def test_insert_function_and_rollback(self):
         for db_type in self.db_types:
-            with self.subTest("rollback for inserting", db_type=db_type):
+            with self.subTest("rollback for inserting.", db_type=db_type):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.insert(self.query_insert)
@@ -431,11 +470,14 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE staff_id >= 100"
                 )]
-                self.assertTrue(len(results) == 0)
+                self.assertEqual(len(results), 0)
 
     def test_insert_with_table_function__without_query(self):
         for db_type in self.db_types:
-            with self.subTest("insert a value", db_type=db_type):
+            with self.subTest(
+                "insert a value with auto query and table name.",
+                db_type=db_type
+            ):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.insert(table_name="staff")
@@ -449,14 +491,17 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE staff_id >= 100"
                 )]
-                self.assertTrue(len(results) == 1)
+                self.assertEqual(len(results), 1)
                 self.assertEqual(results[0]["staff_id"], 100)
                 self.assertEqual(results[0]["username"], "Zoo")
                 self.assertEqual(results[0]["age"], 88)
 
     def test_insert_function__without_query_table(self):
         for db_type in self.db_types:
-            with self.subTest("insert a value", db_type=db_type):
+            with self.subTest(
+                "insert a value with auto query and no table name.",
+                db_type=db_type
+            ):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.insert()
@@ -471,14 +516,16 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE staff_id >= 100"
                 )]
-                self.assertTrue(len(results) == 1)
+                self.assertEqual(len(results), 1)
                 self.assertEqual(results[0]["staff_id"], 100)
                 self.assertEqual(results[0]["username"], "Zoo")
                 self.assertEqual(results[0]["age"], 88)
 
     def test_insert_function__without_query_table_pk(self):
         for db_type in self.db_types:
-            with self.subTest("insert a value", db_type=db_type):
+            with self.subTest(
+                "insert a value with auto query and auto pk.", db_type=db_type
+            ):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.insert()
@@ -503,7 +550,9 @@ class TWinSQLATest(unittest.TestCase):
 
     def test_insert_function__without_query_no_tablename(self):
         for db_type in self.db_types:
-            with self.subTest("insert a value", db_type=db_type):
+            with self.subTest(
+                "insert a value without table name.", db_type=db_type
+            ):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.insert()
@@ -522,7 +571,7 @@ class TWinSQLATest(unittest.TestCase):
 
     def test_insert_many_with_table__function_without_query(self):
         for db_type in self.db_types:
-            with self.subTest("insert a value", db_type=db_type):
+            with self.subTest("insert values.", db_type=db_type):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.insert(table_name="staff")
@@ -541,11 +590,11 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE staff_id >= 100"
                 )]
-                self.assertTrue(len(results) == 3)
+                self.assertEqual(len(results), 3)
 
     def test_insert_many__function_without_query_table(self):
         for db_type in self.db_types:
-            with self.subTest("insert a value", db_type=db_type):
+            with self.subTest("insert values", db_type=db_type):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.insert()
@@ -564,11 +613,11 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE staff_id >= 100"
                 )]
-                self.assertTrue(len(results) == 3)
+                self.assertEqual(len(results), 3)
 
     def test_insert_many__function_without_query_table_pk(self):
         for db_type in self.db_types:
-            with self.subTest("insert a value", db_type=db_type):
+            with self.subTest("insert values", db_type=db_type):
                 sqla: TWinSQLA = db_type.sqla
 
                 @sqla.insert()
@@ -618,7 +667,7 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE staff_id = 6"
                 )]
-                self.assertTrue(len(results) == 1)
+                self.assertEqual(len(results), 1)
                 self.assertEqual(results[0]["staff_id"], 6)
                 self.assertEqual(results[0]["username"], "UPDATED NAME")
                 self.assertEqual(results[0]["age"], None)
@@ -643,7 +692,7 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE staff_id = 6"
                 )]
-                self.assertTrue(len(results) == 1)
+                self.assertEqual(len(results), 1)
                 self.assertEqual(results[0]["staff_id"], 6)
                 self.assertNotEqual(results[0]["username"], "UPDATED NAME")
                 self.assertIsNotNone(results[0]["age"])
@@ -664,7 +713,7 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE username = 'UPDATED NAME'"
                 )]
-                self.assertTrue(len(results) == 1)
+                self.assertEqual(len(results), 1)
                 self.assertEqual(results[0]["staff_id"], 6)
                 self.assertEqual(results[0]["username"], "UPDATED NAME")
                 self.assertEqual(results[0]["age"], 100)
@@ -688,7 +737,7 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE username = 'UPDATED NAME'"
                 )]
-                self.assertTrue(len(results) == 1)
+                self.assertEqual(len(results), 1)
                 self.assertEqual(results[0]["staff_id"], 6)
                 self.assertEqual(results[0]["username"], "UPDATED NAME")
                 self.assertEqual(results[0]["age"], 100)
@@ -712,7 +761,7 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE username = 'UPDATED NAME'"
                 )]
-                self.assertTrue(len(results) == 1)
+                self.assertEqual(len(results), 1)
                 self.assertEqual(results[0]["staff_id"], 6)
                 self.assertEqual(results[0]["username"], "UPDATED NAME")
                 self.assertEqual(results[0]["age"], 100)
@@ -738,7 +787,7 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE username = 'UPDATED NAME'"
                 )]
-                self.assertTrue(len(results) == 3)
+                self.assertEqual(len(results), 3)
 
     def test_update_many_with_pk_function__without_query_table(self):
         for db_type in self.db_types:
@@ -763,7 +812,7 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE username = 'UPDATED NAME'"
                 )]
-                self.assertTrue(len(results) == 3)
+                self.assertEqual(len(results), 3)
 
     def test_update_many_function__without_query_table_pk(self):
         for db_type in self.db_types:
@@ -789,7 +838,7 @@ class TWinSQLATest(unittest.TestCase):
                            in db_type.engine.execute(
                     "SELECT * FROM staff WHERE username = 'UPDATED NAME'"
                 )]
-                self.assertTrue(len(results) == 3)
+                self.assertEqual(len(results), 3)
 
 
 if __name__ == "__main__":
