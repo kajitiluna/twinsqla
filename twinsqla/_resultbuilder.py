@@ -4,8 +4,6 @@ from collections import OrderedDict
 from collections.abc import Sequence
 from functools import lru_cache
 
-from sqlalchemy.engine.result import ResultProxy, RowProxy
-
 from ._support import description
 
 
@@ -19,8 +17,11 @@ class ResultType(Generic[RESULT_TYPE]):
         self.entity_type: Type[RESULT_TYPE] = entity_type
         self.sequencial: bool = sequencial
 
-    def to_values(self, results: ResultProxy) -> Union[
+    def to_values(self, results) -> Union[
             Optional[RESULT_TYPE], Tuple[RESULT_TYPE, ...]]:
+        # type of resutls is ...
+        #     ResultProxy in sqlalcheny < 1.4
+        #     CursorResult in sqlalchemy >= 1.4
 
         if results.returns_rows is False:
             return () if self.sequencial is True else None
@@ -33,7 +34,7 @@ class ResultType(Generic[RESULT_TYPE]):
 
         return tuple(self.to_value(result) for result in results)
 
-    def to_value(self, result: RowProxy) -> RESULT_TYPE:
+    def to_value(self, result) -> RESULT_TYPE:
         return self.entity_type(**OrderedDict(result))
 
 

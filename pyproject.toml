@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "twinsqla"
-version = "0.0.3"
+version = "0.0.4"
 description = "TWinSQLA is a light framework for mapping SQL statements to python functions and methods."
 authors = ["Yoshiki Kajihara"]
 license = "Apache-2.0"
@@ -19,6 +19,9 @@ psycopg2-binary = "^2.8.6"
 docker = "^4.4.1"
 mysqlclient = "^2.0.3"
 flake8 = "^3.8.4"
+
+[tool.poetry.scripts]
+twinsqlacodegen = 'twinsqla.codegenerator:main'
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

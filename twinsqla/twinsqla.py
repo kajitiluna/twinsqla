@@ -13,7 +13,6 @@ import sqlalchemy
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.session import Session
-from sqlalchemy.engine.result import ResultProxy, RowProxy
 
 from ._sqlbuilder import SqlBuilder
 from ._querybindbuilder import (
@@ -303,7 +302,7 @@ class TWinSQLA:
 
         return _do_execute(query, sql_path, result_type, iteratable, sqla=self)
 
-    def _execute_query(self, prepared: PreparedQuery) -> ResultProxy:
+    def _execute_query(self, prepared: PreparedQuery) -> any:
         query: sqlalchemy.sql.text = prepared.statement()
         bind_params: Union[dict, List[dict]] = prepared.bind_params()
 
@@ -678,7 +677,7 @@ class QueryExecutor():
                     builder=sqla_obj._sql_builder, context=context
                 )
 
-                results: ResultProxy = sqla_obj._execute_query(prepared)
+                results = sqla_obj._execute_query(prepared)
 
                 if result_type is None:
                     return None
@@ -717,28 +716,34 @@ RESULT_TYPE = TypeVar("RESULT_TYPE")
 class ResultIterator(Generic[RESULT_TYPE]):
     """
     Iterator of query result.
-    This object has `result_proxy` attribute, which is
-    `sqlalchemy.engine.result.ResultProxy` object.
+    This object has `result` attribute,
+    which is `sqlalchemy.engine.Result` object.
+    (In sqlalchemy < 1.4, this is
+    `sqlalchemy.engine.result.ResultProxy` object.)
     You can use this attribute if necessary.
 
-    This object's iteration is equivalent to `ResultProxy.next()` method.
-    If you stop iteration before exhausting all rows, you need to call
-    `close()` method. It's equivalent to call `ResultProxy.close()` method.
+    This object's iteration is equivalent to `iter(result)` iteration.
+    If you stop iteration before exhausting all rows,
+    you need to call `close()` method.
 
     Args:
         Generic (result_type): type of each object
     """
 
-    def __init__(self, result_proxy: ResultProxy, result_type: ResultType):
-        self.result_proxy: ResultProxy = result_proxy
+    def __init__(self, result, result_type: ResultType):
+        # type of resutls is ...
+        #     ResultProxy in sqlalcheny < 1.4
+        #     CursorResult in sqlalchemy >= 1.4
+        self.result = result
+        self._result_iter = iter(result)
         self._result_type: ResultType = result_type
 
     def __iter__(self):
         return self
 
     def __next__(self) -> RESULT_TYPE:
-        next_value: RowProxy = self.result_proxy.next()
+        next_value = next(self._result_iter)
         return self._result_type.to_value(next_value)
 
     def close(self) -> None:
-        self.result_proxy.close()
+        self.result.close()
