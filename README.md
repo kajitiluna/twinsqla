@@ -224,6 +224,20 @@ class Staff:
 ```
 
 In the above code, use the `Staff` instance can insert into 'staff' table with columns 'staff_name' and 'age'. The column 'staff_id' is removed in insert query by specified `autopk('staff_id')` in `@table()`'s `pk` argument.
+`autopk('column_name')` means that the value of primary column  `column_name` is auto-increment by database.
+
+This entity class can be also available in return type of select query and argument of update / delete queries.
+
+##### Auto generating entity codes
+
+TWinSQLA supports that automatically generating entity codes for existing database.
+
+- Example
+    ```sh
+    $ twinsqlacodegen --to_file {path/to/output} {database url}
+    ```
+    For more details, run `twinsqlacodegen -h` in your terminal.
+
 
 ### Transaction
 In using TWinSQLA, `TWinSQLA.transaction()` can handle database transaction by context manager via sqlalchemy api.
